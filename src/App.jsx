@@ -37,7 +37,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 // ============================================================
 //  CONFIG
 // ============================================================
-const API_URL = "https://www.gajarbotol.site/nirob/config1.php";
+const API_URL = "https://www.gajarbotol.site/nirob/config11.php";
 
 // ============================================================
 //  Premium icon set — clean inline-SVG line icons (no external
