@@ -71,7 +71,6 @@ const ICONS = {
   gem:      mkIcon('<path d="M5 9 9 3h6l4 6-7 12z"/><path d="M5 9h14M9 3l1.5 6L12 21l1.5-12L15 3"/>'),
   users:    mkIcon('<circle cx="9" cy="8.5" r="3"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><circle cx="17" cy="9.5" r="2.5"/><path d="M15 19c0-2.3 1.7-4.2 4-4.7"/>'),
   hand:     mkIcon('<path d="M9 12V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M12 11V4.5a1.5 1.5 0 0 1 3 0V11"/><path d="M15 11V6a1.5 1.5 0 0 1 3 0v8c0 3.3-2.5 6-6.5 6-2.6 0-4-1-5-2.3L3.7 14a1.4 1.4 0 0 1 2-2L9 15"/>'),
-  pickaxe:  mkIcon('<path d="M4.5 4.5c3.5 0 7 1.6 9.3 4.5M19.5 4.5c-3.5 0-7 1.6-9.3 4.5"/><path d="M9.2 9.5 3.5 15.2a1.6 1.6 0 0 0 0 2.3l1 1a1.6 1.6 0 0 0 2.3 0L12.5 12.8"/>'),
 };
 
 // ============================================================
@@ -564,60 +563,6 @@ const css = `
   .tap-status { font-size:0.76rem; color:var(--text-dim); font-weight:600; }
   .tap-status.limit { color:var(--danger); }
 
-  /* ===================== MINING PAGE ===================== */
-  .mine-card {
-    background: linear-gradient(160deg, #0f1d1a 0%, #0c1614 55%, #101a19 100%);
-    border:1px solid rgba(52,209,160,0.28);
-    border-radius:var(--radius-lg); padding:26px 18px 22px;
-    margin:4px 0 18px; text-align:center; position:relative; overflow:hidden;
-  }
-  .mine-card::before {
-    content:''; position:absolute; top:0; left:0; right:0; height:2.5px;
-    background: linear-gradient(90deg, var(--primary), var(--primary2), var(--gold));
-  }
-  .mine-head { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:6px; }
-  .mine-head img { width:17px; height:17px; }
-  .mine-head span { font-size:0.74rem; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; color:var(--text-dim); }
-  .mine-sub { font-size:0.78rem; color:var(--text-mid); font-weight:600; margin-bottom:18px; }
-  .mine-sub b { color:var(--primary2); }
-  .mine-btn-wrap { position:relative; display:inline-block; margin-bottom:16px; }
-  .mine-btn {
-    width:168px; height:168px; border-radius:50%;
-    border:none; cursor:pointer; position:relative;
-    background: radial-gradient(circle at 34% 30%, #4fe8bb, var(--primary2) 44%, var(--grad-a) 100%);
-    box-shadow: var(--glow-violet-strong), inset 0 3px 8px rgba(255,255,255,0.35), inset 0 -8px 18px rgba(0,0,0,0.28);
-    display:flex; align-items:center; justify-content:center;
-    transition: transform 0.1s ease;
-  }
-  .mine-btn:active:not(:disabled) { transform:scale(0.93); }
-  .mine-btn:disabled { filter:grayscale(0.6) brightness(0.6); cursor:not-allowed; }
-  .mine-btn .mine-letter {
-    font-family:'Inter',sans-serif; font-weight:900; font-size:3.6rem;
-    color:rgba(10,13,16,0.85); line-height:1; user-select:none;
-  }
-  .mine-btn .mine-ring1, .mine-btn .mine-ring2 {
-    position:absolute; border-radius:50%; pointer-events:none;
-  }
-  .mine-btn .mine-ring1 { inset:-10px; border:2px solid rgba(52,209,160,0.32); }
-  .mine-btn .mine-ring2 { inset:-20px; border:1.5px solid rgba(52,209,160,0.16); }
-  .mine-float {
-    position:absolute; left:50%; top:6px; transform:translateX(-50%);
-    font-size:1rem; font-weight:800; color:var(--primary2);
-    pointer-events:none; animation:tapFloatUp 0.9s ease-out forwards;
-  }
-  .mine-progress-track {
-    width:100%; height:10px; border-radius:8px; background:var(--surface3);
-    overflow:hidden; margin-bottom:10px; border:1px solid var(--border2);
-  }
-  .mine-progress-fill {
-    height:100%; border-radius:8px;
-    background: linear-gradient(90deg, var(--grad-a), var(--primary2));
-    transition: width 0.25s ease;
-  }
-  .mine-status { font-size:0.76rem; color:var(--text-dim); font-weight:600; }
-  .mine-status.limit { color:var(--danger); }
-  .mine-status.done { color:var(--primary2); }
-
   /* ===================== ADS ===================== */
   .ad-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .ad-box {
@@ -848,14 +793,14 @@ const css = `
   }
   .nav-item {
     display:flex; flex-direction:column; align-items:center; justify-content:center;
-    width:50px; height:52px; cursor:pointer; transition:0.25s; gap:3px;
+    width:56px; height:56px; cursor:pointer; transition:0.25s; gap:3px;
     border-radius:50px; position:relative;
   }
   .nav-item .nav-img {
-    width:21px; height:21px; object-fit:contain;
+    width:24px; height:24px; object-fit:contain;
     filter:grayscale(1) brightness(0.35); transition:0.25s;
   }
-  .nav-item span { font-size:0.5rem; font-weight:600; color:var(--text-dim); opacity:0; transition:0.2s; }
+  .nav-item span { font-size:0.54rem; font-weight:600; color:var(--text-dim); opacity:0; transition:0.2s; }
   .nav-item.active { background:rgba(22,184,138,0.08); }
   .nav-item.active .nav-img { filter:none; transform:scale(1.1); }
   .nav-item.active span { opacity:1; color:var(--primary2); }
@@ -914,11 +859,6 @@ const INIT_DATA = tg.initData || '';
 function fmtAmt(n, sym) {
     const v = Number(n) || 0;
     return `$${v.toFixed(2)} ${sym || 'USDT'}`;
-}
-
-function fmtMineAmt(n, sym) {
-    const v = Number(n) || 0;
-    return `+$${v.toFixed(3)} ${sym || 'USDT'}`;
 }
 
 // ============================================================
@@ -1109,91 +1049,6 @@ function TapCoinCard({ cfg, sym, onTap, tapState }) {
             </div>
             <div className={`tap-status ${reached ? 'limit' : ''}`}>
                 {reached ? 'Daily tap limit reached' : busy ? 'Processing...' : 'Tap the coin to earn'}
-            </div>
-        </div>
-    );
-}
-
-// ============================================================
-//  Mining Page — dedicated tap-tap-tap page, separate from the
-//  Home "Tap Coin" card. Every tap is still a real, atomic
-//  server call (same claimMine/atomic_user_update pattern as
-//  every other reward in this app) so the balance can never be
-//  inflated by rapid clicking or a modified frontend. Reward per
-//  tap and the daily tap target are fully admin-controlled via
-//  config.miningReward / config.dailyMiningLimit (e.g. 0.001 and
-//  1000 → completing the full run pays out $1.00).
-// ============================================================
-function MiningPage({ appState, onMine, mineState }) {
-    const cfg    = appState.config;
-    const sym    = cfg.currencySymbol || 'USDT';
-    const limit  = cfg.dailyMiningLimit || 0;
-    const reward = cfg.miningReward || 0;
-    const done   = mineState.count;
-    const busy   = mineState.busy;
-    const reached = limit > 0 && done >= limit;
-    const pct    = limit > 0 ? Math.min(100, (done / limit) * 100) : 0;
-    const total  = (reward * limit).toFixed(2);
-    const [floats, setFloats] = useState([]);
-
-    async function handleTap() {
-        if (busy || reached) return;
-        const r = await onMine();
-        if (r != null) {
-            const id = Date.now() + Math.random();
-            setFloats(f => [...f, { id, reward: r }]);
-            setTimeout(() => setFloats(f => f.filter(x => x.id !== id)), 900);
-        }
-    }
-
-    if (limit <= 0 || reward <= 0) {
-        return (
-            <div className="page active">
-                <div className="sec-head">
-                    <img src={ICONS.pickaxe} alt="" /> Mining
-                </div>
-                <div className="empty-state">
-                    <p>Mining is not available right now. Please check back later.</p>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="page active">
-            <div className="sec-head">
-                <img src={ICONS.pickaxe} alt="" /> Mining
-            </div>
-
-            <div className="mine-card">
-                <div className="mine-head">
-                    <img src={ICONS.pickaxe} alt="" />
-                    <span>Tap To Mine</span>
-                </div>
-                <div className="mine-sub">
-                    Tap <b>{limit}</b> times to mine <b>{fmtAmt(total, sym)}</b>
-                </div>
-
-                <div className="mine-btn-wrap">
-                    <button className="mine-btn" onClick={handleTap} disabled={busy || reached}>
-                        <div className="mine-ring2" />
-                        <div className="mine-ring1" />
-                        <span className="mine-letter">T</span>
-                    </button>
-                    {floats.map(f => (
-                        <div className="mine-float" key={f.id}>{fmtMineAmt(f.reward, sym)}</div>
-                    ))}
-                </div>
-
-                <div className="mine-progress-track">
-                    <div className="mine-progress-fill" style={{ width: `${pct}%` }} />
-                </div>
-                <div className={`mine-status ${reached ? 'done' : ''}`}>
-                    <b>{done}</b>/{limit} taps today
-                </div>
-                <div className={`mine-status ${reached ? 'limit' : ''}`} style={{ marginTop: 6 }}>
-                    {reached ? 'Today\'s mining run is complete. Come back tomorrow!' : busy ? 'Processing...' : 'Keep tapping the T to mine'}
-                </div>
             </div>
         </div>
     );
@@ -1900,7 +1755,6 @@ export default function App() {
     const [loadingProgress, setLoadingProgress] = useState(0);
     const [withdrawModal, setWithdrawModal] = useState(null);
     const [tapState, setTapState] = useState({ count: 0, busy: false });
-    const [mineState, setMineState] = useState({ count: 0, busy: false });
     const [appState,   setAppState]   = useState({
         user: {
             id: tgUser.id,
@@ -1909,7 +1763,6 @@ export default function App() {
             balance: 0, totalEarned: 0, referrals: 0,
             dailyAds: {}, taskHistory: {}, claimedMissions: {}, completedTaskCount: 0,
             dailyTaps: 0,
-            dailyMines: 0,
             lastActive: '',
         },
         config: {},
@@ -1976,10 +1829,8 @@ export default function App() {
                 const today = new Date().toISOString().slice(0, 10);
                 if (user && user.lastActive === today) {
                     setTapState(t => ({ ...t, count: user.dailyTaps || 0 }));
-                    setMineState(m => ({ ...m, count: user.dailyMines || 0 }));
                 } else {
                     setTapState(t => ({ ...t, count: 0 }));
-                    setMineState(m => ({ ...m, count: 0 }));
                 }
 
                 if (config?.adSlots) loadAdScripts(config.adSlots);
@@ -2127,43 +1978,6 @@ export default function App() {
             return next;
         });
         setTapState({ count: res.count, busy: false });
-        try { tg.HapticFeedback.impactOccurred('light'); } catch {}
-        return rwrd;
-    }
-
-    // ===== MINING REWARD — separate page, separate daily counter,
-    // same atomic per-tap server call pattern as Tap Coin so the
-    // balance can never be duplicated or spoofed. Returns the reward
-    // amount on success, or null on failure. =====
-    const mineLock = useRef(false);
-    async function handleMine() {
-        if (mineLock.current) return null;
-        mineLock.current = true;
-        setMineState(m => ({ ...m, busy: true }));
-        const res = await apiCall('claimMine', 'POST', {});
-        mineLock.current = false;
-        if (!res || res.error) {
-            if (res?.code !== 'DAILY_LIMIT') showToast('error', res?.error || 'Failed to register tap.');
-            setMineState(m => ({ ...m, busy: false, count: res?.count ?? m.count }));
-            return null;
-        }
-        const rwrd = res.reward;
-        const today = new Date().toISOString().slice(0, 10);
-        setAppState(prev => {
-            const next = {
-                ...prev,
-                user: {
-                    ...prev.user,
-                    balance: res.newBalance,
-                    totalEarned: (prev.user.totalEarned || 0) + rwrd,
-                    dailyMines: res.count,
-                    lastActive: today,
-                },
-            };
-            saveLocal(next);
-            return next;
-        });
-        setMineState({ count: res.count, busy: false });
         try { tg.HapticFeedback.impactOccurred('light'); } catch {}
         return rwrd;
     }
@@ -2403,7 +2217,6 @@ export default function App() {
                     <main>
                         {activePage === 'home'     && <HomePage     appState={appState} onGoReferral={() => handleNav('referral')} onTap={handleTap} tapState={tapState} />}
                         {activePage === 'earn'     && <EarnPage     appState={appState} onAdDone={handleAdDone} onTaskBegin={handleTaskBegin} />}
-                        {activePage === 'mining'   && <MiningPage   appState={appState} onMine={handleMine} mineState={mineState} />}
                         {activePage === 'mission'  && <MissionPage  appState={appState} onClaimMission={handleClaimMission} />}
                         {activePage === 'referral' && <ReferralPage appState={appState} onCopy={handleCopy} onShare={handleShare} />}
                         {activePage === 'withdraw' && <WithdrawPage appState={appState} onWithdraw={handleWithdraw} />}
@@ -2413,7 +2226,6 @@ export default function App() {
                         {[
                             { page:'home',     icon:ICONS.home,     label:'Home' },
                             { page:'earn',     icon:ICONS.earn,     label:'Earn' },
-                            { page:'mining',   icon:ICONS.pickaxe,  label:'Mining' },
                             { page:'mission',  icon:ICONS.trophy,   label:'Missions' },
                             { page:'referral', icon:ICONS.users,    label:'Refer' },
                             { page:'withdraw', icon:ICONS.withdraw, label:'Withdraw' },
