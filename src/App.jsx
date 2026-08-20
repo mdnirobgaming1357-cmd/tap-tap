@@ -5,30 +5,17 @@
  *  Currency: USDT ($)
  *  API: https://www.gajarbotol.site/nirob/api.php
  * ============================================================
- *  What's in this build:
- *   1. Full color theme change — Graphite background with
- *      Emerald-Teal (primary) + Bronze (reward accent) palette.
- *   2. All UI text converted to English.
- *   3. Currency switched to USDT, shown as "$X.XX USDT".
- *   4. Premium line-style icons (inline SVG) replace the old
- *      emoji/sticker icons — nothing changes visually into a
- *      cartoon sticker anymore, everything is a clean vector mark.
- *   5. Referral link moved off the Home page into its own
- *      "Refer" tab in the bottom navigation.
- *   6. New Tap Coin feature on the Home page — user taps a coin
- *      to earn a small admin-configured reward, up to a daily
- *      limit. Fully server-authoritative and atomic, same
- *      pattern as the existing ad-reward system, so balances
- *      can never be duplicated or spoofed from the frontend.
- *   7. Mission system — unlimited admin-defined missions
- *      (e.g. "Refer 10 = $1.00"), same as before.
- *   8. Ad network support — Monetag & Adsgram, fully controlled
- *      from the admin panel (network + zone/block id only).
- *   9. Loading screen icon replaced with a "T" brand mark.
- *
- *  Nothing about the underlying data/security model changed:
- *   - No credentials, bot tokens, or DB URLs are exposed here.
- *   - All rewards are still granted only by the PHP backend.
+ *  Changes made:
+ *   1. Balance card removed from Home page.
+ *   2. Balance moved to top navigation — shown next to user name.
+ *   3. Withdrawal success is now a full-screen overlay with a
+ *      unique, premium design (not a modal).
+ *   4. All action buttons (ad, task, mission, tap, mine, withdraw)
+ *      are properly disabled the moment they are clicked and only
+ *      re-enable after the server responds or an error occurs.
+ *   5. Mission claim button now shows a processing state.
+ *   6. Everything else remains exactly as before — no extra
+ *      features added, no data models changed.
  * ============================================================
  */
 
@@ -40,9 +27,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 const API_URL = "https://www.gajarbotol.site/nirob/config11.php";
 
 // ============================================================
-//  Premium icon set — clean inline-SVG line icons (no external
-//  images, no emoji/stickers). Rendered as data-URI <img> so all
-//  existing CSS sizing rules keep working unchanged.
+//  Premium icon set — clean inline-SVG line icons
 // ============================================================
 function mkIcon(inner, vb = "0 0 24 24") {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" fill="none" stroke="#e7f3ee" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
@@ -120,7 +105,7 @@ const css = `
   }
   #root { max-width:480px; margin:0 auto; min-height:100vh; padding-bottom:100px; position:relative; }
 
-  /* ===================== LOADER — "T" Brand Mark ===================== */
+  /* ===================== LOADER ===================== */
   .loader-overlay {
     position:fixed; inset:0; background:var(--bg); z-index:9999;
     display:flex; flex-direction:column;
@@ -165,7 +150,6 @@ const css = `
     background:var(--gold2); box-shadow:0 0 12px rgba(212,162,76,0.9);
     top:-3.5px; left:50%; margin-left:-3.5px;
   }
-
   .loader-progress-wrap {
     position:relative; z-index:2;
     margin-top:46px;
@@ -217,80 +201,78 @@ const css = `
   .toast.show { top:20px; }
   .toast-icon { width:18px; height:18px; flex-shrink:0; }
 
-  /* ===================== SUCCESS MODAL ===================== */
-  .modal-overlay {
-    position:fixed; inset:0; z-index:300;
-    background:rgba(4,6,7,0.72);
-    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
-    display:flex; align-items:center; justify-content:center;
-    animation:fadeUp 0.25s ease both;
+  /* ===================== FULL-SCREEN WITHDRAWAL SUCCESS ===================== */
+  .fullscreen-overlay {
+    position:fixed; inset:0; z-index:500;
+    background:rgba(4,6,7,0.88);
+    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    animation:fadeUp 0.4s ease both;
+    padding:32px 20px;
   }
-  .modal-card {
-    width:calc(100% - 44px); max-width:380px;
+  .fullscreen-card {
+    max-width:420px; width:100%;
     background:linear-gradient(170deg, #131c22 0%, #10151a 55%, #121b1c 100%);
     border:1px solid rgba(22,184,138,0.32);
-    border-radius:26px; padding:30px 24px 24px;
+    border-radius:32px; padding:44px 28px 32px;
     position:relative; overflow:hidden; text-align:center;
-    box-shadow:0 30px 80px rgba(0,0,0,0.6), var(--glow-violet);
+    box-shadow:0 40px 80px rgba(0,0,0,0.7), var(--glow-violet-strong);
     animation:modalPop 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
   }
-  @keyframes modalPop {
-    from { opacity:0; transform:scale(0.7) translateY(40px); }
-    to   { opacity:1; transform:scale(1) translateY(0); }
-  }
-  .modal-card::before {
-    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+  .fullscreen-card::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3.5px;
     background:linear-gradient(90deg, var(--grad-a), var(--grad-b), var(--gold));
   }
-  .modal-glow {
+  .fullscreen-glow {
     position:absolute; inset:0; pointer-events:none;
     background: radial-gradient(ellipse at 50% 0%, rgba(22,184,138,0.22) 0%, transparent 55%);
   }
-  .modal-icon {
-    width:72px; height:72px; margin:0 auto 16px; border-radius:50%;
-    background:rgba(52,209,160,0.12); border:1px solid rgba(52,209,160,0.35);
+  .fullscreen-icon {
+    width:96px; height:96px; margin:0 auto 20px; border-radius:50%;
+    background:rgba(52,209,160,0.12); border:1.5px solid rgba(52,209,160,0.4);
     display:flex; align-items:center; justify-content:center;
-    box-shadow:0 0 30px rgba(52,209,160,0.2);
+    box-shadow:0 0 50px rgba(52,209,160,0.25);
     position:relative; z-index:1;
   }
-  .modal-icon img { width:36px; height:36px; }
-  .modal-card h3 {
-    font-size:1.5rem; font-weight:900; letter-spacing:-0.5px; color:#fff;
+  .fullscreen-icon img { width:44px; height:44px; }
+  .fullscreen-card h2 {
+    font-size:2rem; font-weight:900; letter-spacing:-1px; color:#fff;
+    position:relative; z-index:1; margin-bottom:4px;
+  }
+  .fullscreen-sub {
+    font-size:0.92rem; color:var(--text-mid); margin-bottom:20px;
     position:relative; z-index:1;
   }
-  .modal-sub {
-    font-size:0.82rem; color:var(--text-mid); margin-top:6px;
+  .fullscreen-details {
+    background:rgba(10,13,16,0.5); border:1px solid var(--border2);
+    border-radius:18px; padding:10px 18px; margin-bottom:20px;
     position:relative; z-index:1;
   }
-  .modal-details {
-    margin:20px 0 14px; background:rgba(10,13,16,0.5);
-    border:1px solid var(--border2); border-radius:16px;
-    padding:6px 16px; position:relative; z-index:1;
-  }
-  .modal-row {
+  .fullscreen-row {
     display:flex; justify-content:space-between; align-items:center;
-    padding:11px 0; border-bottom:1px solid var(--border);
+    padding:12px 0; border-bottom:1px solid var(--border);
   }
-  .modal-row:last-child { border-bottom:none; }
-  .modal-row span { font-size:0.78rem; color:var(--text-dim); font-weight:500; }
-  .modal-row strong {
-    font-size:0.86rem; color:var(--text); font-weight:700;
+  .fullscreen-row:last-child { border-bottom:none; }
+  .fullscreen-row span { font-size:0.8rem; color:var(--text-dim); font-weight:500; }
+  .fullscreen-row strong {
+    font-size:0.9rem; color:var(--text); font-weight:700;
     font-variant-numeric:tabular-nums; max-width:60%; text-align:right;
     word-break:break-all;
   }
-  .modal-row strong.status-txt { color:var(--warning); }
-  .modal-note {
-    font-size:0.74rem; color:var(--text-dim); line-height:1.7;
-    margin-bottom:18px; position:relative; z-index:1;
+  .fullscreen-row strong.status-txt { color:var(--warning); }
+  .fullscreen-note {
+    font-size:0.78rem; color:var(--text-dim); line-height:1.7;
+    margin-bottom:22px; position:relative; z-index:1;
   }
-  .btn-modal-close {
-    width:100%; padding:15px; border:none; border-radius:14px;
+  .btn-fullscreen-close {
+    width:100%; padding:16px; border:none; border-radius:16px;
     background:linear-gradient(135deg, var(--grad-a), var(--grad-b));
-    color:#fff; font-size:0.95rem; font-weight:800; cursor:pointer;
+    color:#fff; font-size:1rem; font-weight:800; cursor:pointer;
     position:relative; z-index:1;
-    transition:0.2s; box-shadow:0 6px 24px rgba(22,184,138,0.4);
+    transition:0.2s; box-shadow:0 6px 28px rgba(22,184,138,0.4);
   }
-  .btn-modal-close:active { transform:scale(0.97); opacity:0.9; }
+  .btn-fullscreen-close:active { transform:scale(0.97); opacity:0.9; }
 
   /* ===================== TOP NAV ===================== */
   .top-nav {
@@ -298,8 +280,8 @@ const css = `
     padding:16px 18px 14px; position:sticky; top:0; z-index:50;
     background: linear-gradient(to bottom, var(--bg) 60%, transparent);
   }
-  .user-pill { display:flex; align-items:center; gap:12px; }
-  .user-avatar { position:relative; }
+  .user-pill { display:flex; align-items:center; gap:12px; flex:1; min-width:0; }
+  .user-avatar { position:relative; flex-shrink:0; }
   .user-avatar img {
     width:44px; height:44px; border-radius:50%;
     border:2px solid var(--primary); object-fit:cover;
@@ -314,12 +296,35 @@ const css = `
     0%,100%{box-shadow:0 0 0 0 rgba(52,209,160,0.4)}
     50%{box-shadow:0 0 0 4px rgba(52,209,160,0)}
   }
-  .user-info h3 { font-size:0.95rem; font-weight:700; }
-  .user-info p { font-size:0.7rem; color:var(--text-dim); margin-top:1px; }
+  .user-info {
+    flex:1; min-width:0;
+    display:flex; flex-direction:column; gap:1px;
+  }
+  .user-info-top {
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  }
+  .user-info h3 {
+    font-size:0.95rem; font-weight:700; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:110px;
+  }
+  .user-balance-pill {
+    font-size:0.75rem; font-weight:700;
+    color:#fff; background:rgba(22,184,138,0.16);
+    border:1px solid rgba(22,184,138,0.28);
+    border-radius:100px; padding:2px 12px; white-space:nowrap;
+    display:inline-flex; align-items:center; gap:4px;
+    box-shadow:0 0 18px rgba(22,184,138,0.12);
+  }
+  .user-balance-pill img {
+    width:14px; height:14px; filter:brightness(0.9);
+  }
+  .user-info p {
+    font-size:0.65rem; color:var(--text-dim); letter-spacing:0.3px;
+  }
   .notif-btn {
     width:40px; height:40px; background:var(--surface2); border:1px solid var(--border2);
     border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;
-    transition:0.2s; position:relative;
+    transition:0.2s; position:relative; flex-shrink:0;
   }
   .notif-btn img { width:18px; height:18px; }
   .notif-dot {
@@ -338,64 +343,6 @@ const css = `
     from { opacity:0; transform:translateY(24px) scale(0.96); }
     to   { opacity:1; transform:translateY(0) scale(1); }
   }
-
-  /* ===================== BALANCE CARD ===================== */
-  .balance-card {
-    margin: 0 16px 20px;
-    background: linear-gradient(148deg, #11221c 0%, #0f1a17 38%, #131c1a 72%, #11221c 100%);
-    border:1px solid rgba(22,184,138,0.38);
-    border-radius:var(--radius-lg); padding:28px 24px 24px;
-    position:relative; overflow:hidden;
-    box-shadow: var(--glow-violet), 0 0 0 1px rgba(22,184,138,0.14) inset;
-    animation: cardGlowIn 0.9s cubic-bezier(0.34,1.56,0.64,1) both;
-    transition:box-shadow 0.6s;
-  }
-  .balance-card:hover {
-    box-shadow: var(--glow-violet-strong), 0 0 0 2px rgba(22,184,138,0.26) inset;
-  }
-  @keyframes cardGlowIn {
-    from { transform:scale(0.85) translateY(30px); opacity:0; box-shadow:0 0 0 rgba(22,184,138,0); }
-    to   { transform:scale(1) translateY(0); opacity:1; box-shadow:var(--glow-violet); }
-  }
-  .bc-glow {
-    position:absolute; inset:0; pointer-events:none;
-    background: radial-gradient(ellipse at 18% 8%, rgba(22,184,138,0.32) 0%, transparent 52%),
-                radial-gradient(ellipse at 82% 92%, rgba(212,162,76,0.18) 0%, transparent 50%),
-                radial-gradient(ellipse at 50% 50%, rgba(127,230,196,0.08) 0%, transparent 40%);
-    animation: glowDrift 7s ease-in-out infinite alternate;
-  }
-  @keyframes glowDrift {
-    0% { opacity:0.6; transform:scale(1) rotate(-2deg); }
-    100% { opacity:1; transform:scale(1.08) rotate(2deg); }
-  }
-  .bc-grid {
-    position:absolute; inset:0; pointer-events:none;
-    background-image: linear-gradient(rgba(22,184,138,0.05) 1px, transparent 1px),
-                      linear-gradient(90deg, rgba(22,184,138,0.05) 1px, transparent 1px);
-    background-size: 28px 28px;
-    opacity:0.5;
-  }
-  .bc-label {
-    font-size:0.68rem; text-transform:uppercase; letter-spacing:3px;
-    color:rgba(127,230,196,0.85); font-weight:700; margin-bottom:10px;
-    position:relative; z-index:1;
-  }
-  .bc-amount {
-    font-size:3.2rem; font-weight:900; color:#fff; letter-spacing:-2px; line-height:1;
-    position:relative; z-index:1;
-    font-variant-numeric:tabular-nums;
-    text-shadow:0 0 60px rgba(22,184,138,0.35);
-  }
-  .bc-dollar { font-size:1.7rem; font-weight:700; opacity:0.75; margin-right:2px; }
-  .bc-sym { font-size:1.3rem; font-weight:600; opacity:0.7; }
-  .bc-footer {
-    display:flex; gap:20px; margin-top:22px; position:relative; z-index:1;
-    padding-top:16px; border-top:1px solid rgba(22,184,138,0.18);
-  }
-  .bc-mini span:first-child {
-    font-size:0.65rem; color:rgba(127,230,196,0.6); font-weight:600; display:block;
-  }
-  .bc-mini span:last-child { font-size:0.95rem; color:#fff; font-weight:700; font-variant-numeric:tabular-nums; }
 
   /* ===================== SECTION HEADING ===================== */
   .sec-head {
@@ -443,61 +390,7 @@ const css = `
   .stat-card p { font-size:0.7rem; color:var(--text-dim); font-weight:500; margin-bottom:5px; }
   .stat-card h4 { font-size:1.4rem; font-weight:800; letter-spacing:-0.5px; color:var(--text); font-variant-numeric:tabular-nums; }
 
-  /* ===================== REFERRAL CARD ===================== */
-  .ref-card {
-    background:var(--surface); border:1px solid var(--border);
-    border-radius:var(--radius-lg); padding:20px 18px;
-    margin-bottom:18px; position:relative; overflow:hidden;
-  }
-  .ref-card::before {
-    content:''; position:absolute; top:0; left:0; right:0; height:2.5px;
-    background: linear-gradient(90deg, var(--grad-a), var(--grad-b), var(--grad-c));
-  }
-  .ref-top { display:flex; align-items:center; gap:14px; margin-bottom:16px; }
-  .ref-icon {
-    width:44px; height:44px; border-radius:14px;
-    background:rgba(22,184,138,0.14); border:1px solid rgba(22,184,138,0.22);
-    display:flex; align-items:center; justify-content:center; flex-shrink:0;
-  }
-  .ref-icon img { width:24px; height:24px; }
-  .ref-title h4 { font-size:0.95rem; font-weight:700; }
-  .ref-badge {
-    display:inline-flex; align-items:center; gap:4px;
-    background:rgba(212,162,76,0.12); border:1px solid rgba(212,162,76,0.28);
-    color:var(--gold); padding:3px 10px; border-radius:20px;
-    font-size:0.7rem; font-weight:700; margin-top:4px;
-    animation:badgePop 0.5s cubic-bezier(0.34,1.56,0.64,1) both 0.3s;
-  }
-  @keyframes badgePop { from{transform:scale(0)} to{transform:scale(1)} }
-  .ref-badge img { width:12px; height:12px; }
-  .ref-label { font-size:0.68rem; color:var(--text-dim); font-weight:600; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
-  .ref-input-row {
-    display:flex; background:var(--surface2); border:1px solid var(--border2);
-    border-radius:var(--radius-sm); padding:5px 5px 5px 14px; margin-bottom:12px; align-items:center;
-  }
-  .ref-inp { flex:1; background:transparent; border:none; color:var(--text-mid); font-size:0.8rem; font-weight:500; outline:none; min-width:0; }
-  .btn-copy {
-    background: linear-gradient(135deg, var(--grad-a), var(--grad-b));
-    color:#fff; border:none; padding:9px 15px; border-radius:9px;
-    font-size:0.8rem; font-weight:600; cursor:pointer;
-    display:flex; align-items:center; gap:6px; transition:0.2s; flex-shrink:0;
-    box-shadow:0 3px 12px rgba(22,184,138,0.25);
-  }
-  .btn-copy img { width:14px; height:14px; filter:brightness(10); }
-  .btn-copy:active { transform:scale(0.93); opacity:0.85; }
-  .btn-copy:disabled { opacity:0.6; cursor:not-allowed; }
-  .btn-share {
-    width:100%; padding:14px; border:none; border-radius:var(--radius-sm);
-    background: linear-gradient(135deg, var(--grad-a), var(--grad-b));
-    color:#fff; font-size:0.92rem; font-weight:700; cursor:pointer;
-    display:flex; align-items:center; justify-content:center; gap:8px;
-    transition:0.2s; box-shadow:0 4px 20px rgba(22,184,138,0.35);
-  }
-  .btn-share img { width:18px; height:18px; filter:brightness(10); }
-  .btn-share:active { transform:scale(0.97); opacity:0.9; }
-  .btn-share:disabled { opacity:0.6; cursor:not-allowed; }
-
-  /* ===================== HOME REFERRAL TEASER ===================== */
+  /* ===================== REFERRAL TEASER ===================== */
   .ref-teaser {
     background:var(--surface); border:1px solid var(--border);
     border-radius:var(--radius-lg); padding:18px; margin-bottom:18px;
@@ -740,7 +633,10 @@ const css = `
     background:linear-gradient(135deg, var(--gold2), var(--gold));
     color:#0a0d10; box-shadow:0 3px 12px rgba(212,162,76,0.28);
   }
-  .btn-mission-claim:disabled { opacity:0.55; cursor:not-allowed; box-shadow:none; }
+  .btn-mission-claim:disabled {
+    opacity:0.55; cursor:not-allowed; box-shadow:none;
+    background:var(--surface2); color:var(--text-dim);
+  }
   .mission-claimed-badge {
     font-size:0.72rem; font-weight:700; color:var(--green);
     display:flex; align-items:center; gap:5px;
@@ -837,6 +733,60 @@ const css = `
   .status-completed{ background:rgba(52,209,160,0.12); color:var(--green); }
   .status-rejected { background:rgba(242,104,92,0.12); color:var(--danger); }
 
+  /* ===================== REFERRAL PAGE ===================== */
+  .ref-card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius-lg); padding:20px 18px;
+    margin-bottom:18px; position:relative; overflow:hidden;
+  }
+  .ref-card::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:2.5px;
+    background: linear-gradient(90deg, var(--grad-a), var(--grad-b), var(--grad-c));
+  }
+  .ref-top { display:flex; align-items:center; gap:14px; margin-bottom:16px; }
+  .ref-icon {
+    width:44px; height:44px; border-radius:14px;
+    background:rgba(22,184,138,0.14); border:1px solid rgba(22,184,138,0.22);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .ref-icon img { width:24px; height:24px; }
+  .ref-title h4 { font-size:0.95rem; font-weight:700; }
+  .ref-badge {
+    display:inline-flex; align-items:center; gap:4px;
+    background:rgba(212,162,76,0.12); border:1px solid rgba(212,162,76,0.28);
+    color:var(--gold); padding:3px 10px; border-radius:20px;
+    font-size:0.7rem; font-weight:700; margin-top:4px;
+    animation:badgePop 0.5s cubic-bezier(0.34,1.56,0.64,1) both 0.3s;
+  }
+  @keyframes badgePop { from{transform:scale(0)} to{transform:scale(1)} }
+  .ref-badge img { width:12px; height:12px; }
+  .ref-label { font-size:0.68rem; color:var(--text-dim); font-weight:600; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+  .ref-input-row {
+    display:flex; background:var(--surface2); border:1px solid var(--border2);
+    border-radius:var(--radius-sm); padding:5px 5px 5px 14px; margin-bottom:12px; align-items:center;
+  }
+  .ref-inp { flex:1; background:transparent; border:none; color:var(--text-mid); font-size:0.8rem; font-weight:500; outline:none; min-width:0; }
+  .btn-copy {
+    background: linear-gradient(135deg, var(--grad-a), var(--grad-b));
+    color:#fff; border:none; padding:9px 15px; border-radius:9px;
+    font-size:0.8rem; font-weight:600; cursor:pointer;
+    display:flex; align-items:center; gap:6px; transition:0.2s; flex-shrink:0;
+    box-shadow:0 3px 12px rgba(22,184,138,0.25);
+  }
+  .btn-copy img { width:14px; height:14px; filter:brightness(10); }
+  .btn-copy:active { transform:scale(0.93); opacity:0.85; }
+  .btn-copy:disabled { opacity:0.6; cursor:not-allowed; }
+  .btn-share {
+    width:100%; padding:14px; border:none; border-radius:var(--radius-sm);
+    background: linear-gradient(135deg, var(--grad-a), var(--grad-b));
+    color:#fff; font-size:0.92rem; font-weight:700; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    transition:0.2s; box-shadow:0 4px 20px rgba(22,184,138,0.35);
+  }
+  .btn-share img { width:18px; height:18px; filter:brightness(10); }
+  .btn-share:active { transform:scale(0.97); opacity:0.9; }
+  .btn-share:disabled { opacity:0.6; cursor:not-allowed; }
+
   /* ===================== BOTTOM NAV ===================== */
   .bottom-nav {
     position:fixed; bottom:16px; left:50%; transform:translateX(-50%);
@@ -906,10 +856,7 @@ tg.setBackgroundColor?.('#0a0d10');
 const INIT_DATA = tg.initData || '';
 
 // ============================================================
-//  Currency formatting helper — everything is shown as USDT
-//  with a leading "$" sign, e.g. "$1.50 USDT". The symbol itself
-//  still comes from admin config, so an admin can rename it
-//  without any code change.
+//  Currency formatting
 // ============================================================
 function fmtAmt(n, sym) {
     const v = Number(n) || 0;
@@ -928,9 +875,6 @@ async function apiCall(action, method = 'GET', body = null) {
     try {
         let url = `${API_URL}?action=${action}`;
         if (method === 'GET') {
-            // getConfig is a public action — initData is not verified for
-            // it, so the user's Telegram data (id/name/photo/hash) is
-            // intentionally never sent on the URL for that call.
             if (INIT_DATA && action !== 'getConfig') url += `&initData=${encodeURIComponent(INIT_DATA)}`;
             if (body) Object.keys(body).forEach(k => (url += `&${k}=${encodeURIComponent(body[k])}`));
         }
@@ -952,7 +896,7 @@ async function apiCall(action, method = 'GET', body = null) {
 }
 
 // ============================================================
-//  Loader — "T" Brand Mark
+//  Loader
 // ============================================================
 function Loader({ hiding, progress }) {
     return (
@@ -1004,7 +948,7 @@ function Toast({ type, msg, show }) {
 }
 
 // ============================================================
-//  Home Page
+//  Home Page — balance card removed, balance shown in top nav
 // ============================================================
 function HomePage({ appState, onGoReferral, onTap, tapState }) {
     const u   = appState.user;
@@ -1066,11 +1010,7 @@ function HomePage({ appState, onGoReferral, onTap, tapState }) {
 }
 
 // ============================================================
-//  Tap Coin — server-authoritative tap-to-earn. Every tap is a
-//  real API call; the button stays disabled while a request is
-//  in flight, which naturally rate-limits taps to network speed
-//  and lines up with the server-side per-tap cooldown so the
-//  balance can never be inflated from the client.
+//  Tap Coin
 // ============================================================
 function TapCoinCard({ cfg, sym, onTap, tapState }) {
     const limit = cfg.dailyTapLimit || 0;
@@ -1115,14 +1055,7 @@ function TapCoinCard({ cfg, sym, onTap, tapState }) {
 }
 
 // ============================================================
-//  Mining Page — dedicated tap-tap-tap page, separate from the
-//  Home "Tap Coin" card. Every tap is still a real, atomic
-//  server call (same claimMine/atomic_user_update pattern as
-//  every other reward in this app) so the balance can never be
-//  inflated by rapid clicking or a modified frontend. Reward per
-//  tap and the daily tap target are fully admin-controlled via
-//  config.miningReward / config.dailyMiningLimit (e.g. 0.001 and
-//  1000 → completing the full run pays out $1.00).
+//  Mining Page
 // ============================================================
 function MiningPage({ appState, onMine, mineState }) {
     const cfg    = appState.config;
@@ -1200,7 +1133,7 @@ function MiningPage({ appState, onMine, mineState }) {
 }
 
 // ============================================================
-//  Referral Page — the referral link now lives on its own tab
+//  Referral Page
 // ============================================================
 function ReferralPage({ appState, onCopy, onShare }) {
     const u   = appState.user;
@@ -1327,9 +1260,9 @@ function EarnPage({ appState, onAdDone, onTaskBegin }) {
     );
 }
 
-// Cooldown timestamps are kept in localStorage so leaving the page
-// or refreshing the app never resets a running cooldown — it just
-// keeps counting down from where it left off.
+// ============================================================
+//  Ad cooldown state
+// ============================================================
 const AD_STATE_KEY = '__earnwallet_adstates';
 
 function readAdStates() {
@@ -1350,16 +1283,13 @@ function clearAdState(slotId) {
 }
 
 // ============================================================
-//  Ad Box — supports Monetag & Adsgram, controlled purely by
-//  admin-configured `network` + `id` (zone id / block id)
+//  Ad Box
 // ============================================================
 function AdBox({ slot, index, done, limit, onAdDone, sym }) {
-    // Per-slot watch/cooldown timing. Admins can override via
-    // `slot.watchSeconds` / `slot.cooldownSeconds` from the admin panel.
     const WATCH_SECONDS    = slot.watchSeconds   || (index === 0 ? 17 : index === 1 ? 30 : 17);
     const COOLDOWN_SECONDS = slot.cooldownSeconds || (index === 0 ? 7  : index === 1 ? 10 : 7);
 
-    const [phase, setPhase] = useState('idle');      // idle | loading | watching | cooldown
+    const [phase, setPhase] = useState('idle');
     const [countdown, setCountdown] = useState(0);
     const timerRef = useRef(null);
     const lockRef = useRef(false);
@@ -1379,8 +1309,6 @@ function AdBox({ slot, index, done, limit, onAdDone, sym }) {
         }
     }
 
-    // If a cooldown was already running before the page changed or
-    // refreshed, resume it from where it left off.
     useEffect(() => {
         const st = readAdStates()[slot.id];
         if (st && st.cooldownEnd) {
@@ -1397,10 +1325,6 @@ function AdBox({ slot, index, done, limit, onAdDone, sym }) {
         return () => clearTimer();
     }, [slot.id]);
 
-    // The browser throttles setInterval in the background, so the
-    // countdown is driven off Date.now() instead — timing stays
-    // correct even if the tab was backgrounded, and the reward is
-    // never granted early or late.
     function startCountdown(totalMs, onDone) {
         const endAt = Date.now() + totalMs;
         clearTimer();
@@ -1439,7 +1363,6 @@ function AdBox({ slot, index, done, limit, onAdDone, sym }) {
         });
     }
 
-    // Wait for the ad network SDK to load before showing any timing.
     async function ensureAdLoaded() {
         if (slot.network === 'monetag') {
             await waitFor(() => window[`show_${slot.id}`], 10000);
@@ -1452,8 +1375,6 @@ function AdBox({ slot, index, done, limit, onAdDone, sym }) {
         return false;
     }
 
-    // Open the ad. For Adsgram, track close/fail so a broken ad
-    // never grants a reward.
     function openAd() {
         return new Promise(resolve => {
             if (slot.network === 'monetag' && window[`show_${slot.id}`]) {
@@ -1511,9 +1432,6 @@ function AdBox({ slot, index, done, limit, onAdDone, sym }) {
 
         updatePhase('watching');
         startCountdown(WATCH_SECONDS * 1000, () => {
-            // If the countdown finishes but the ad (Adsgram) is still
-            // open, wait for it to actually close before rewarding —
-            // the reward is never lost even if the ad ran long.
             waitFor(() => !adOpenRef.current || adFailedRef.current, 30000).then(() => {
                 if (adFailedRef.current) {
                     showToastGlobal('error', 'Ad was not completed. Please try again.');
@@ -1573,8 +1491,7 @@ function AdBox({ slot, index, done, limit, onAdDone, sym }) {
 }
 
 // ============================================================
-//  Task Item — the claim button is safely disabled the instant
-//  it's tapped, and only unlocks again once the server responds.
+//  Task Item
 // ============================================================
 function TaskItem({ id, task, history, sym, now, onBegin }) {
     const [state, setState] = useState('idle');
@@ -1612,9 +1529,6 @@ function TaskItem({ id, task, history, sym, now, onBegin }) {
         setState('claiming');
         const ok = await onBegin(id, task);
         lockRef.current = false;
-        // On success, taskHistory updates from the parent and this
-        // task drops out of the pending list, keeping the button
-        // locked. On failure, go back to "claim" so the user can retry.
         if (!ok) setState('claim');
     }
 
@@ -1658,8 +1572,7 @@ function TaskItem({ id, task, history, sym, now, onBegin }) {
 }
 
 // ============================================================
-//  Mission Page — unlimited admin-defined missions; this only
-//  renders progress and lets the user claim.
+//  Mission Page
 // ============================================================
 function MissionPage({ appState, onClaimMission }) {
     const cfg = appState.config;
@@ -1669,6 +1582,14 @@ function MissionPage({ appState, onClaimMission }) {
     const claimed = u.claimedMissions || {};
     const refs = u.referrals || 0;
     const ids = Object.keys(missions);
+    const [processing, setProcessing] = useState({});
+
+    async function handleClaim(id) {
+        if (processing[id]) return;
+        setProcessing(p => ({ ...p, [id]: true }));
+        await onClaimMission(id);
+        setProcessing(p => ({ ...p, [id]: false }));
+    }
 
     return (
         <div className="page active">
@@ -1688,6 +1609,7 @@ function MissionPage({ appState, onClaimMission }) {
                         const isClaimed = !!claimed[id];
                         const isEligible = refs >= required && !isClaimed;
                         const pct = required > 0 ? Math.min(100, Math.round((refs / required) * 100)) : 100;
+                        const isProcessing = !!processing[id];
                         return (
                             <div className={`mission-card ${isClaimed ? 'done' : ''}`} key={id}>
                                 <div className="mission-top">
@@ -1711,10 +1633,10 @@ function MissionPage({ appState, onClaimMission }) {
                                     ) : (
                                         <button
                                             className="btn-mission-claim"
-                                            disabled={!isEligible}
-                                            onClick={() => onClaimMission(id)}
+                                            disabled={!isEligible || isProcessing}
+                                            onClick={() => handleClaim(id)}
                                         >
-                                            Claim Bonus
+                                            {isProcessing ? 'Processing...' : 'Claim Bonus'}
                                         </button>
                                     )}
                                 </div>
@@ -1898,7 +1820,7 @@ export default function App() {
     const [activePage, setActivePage] = useState('home');
     const [toast,      setToast]      = useState({ show: false, type: 'success', msg: '' });
     const [loadingProgress, setLoadingProgress] = useState(0);
-    const [withdrawModal, setWithdrawModal] = useState(null);
+    const [withdrawFullscreen, setWithdrawFullscreen] = useState(null);
     const [tapState, setTapState] = useState({ count: 0, busy: false });
     const [mineState, setMineState] = useState({ count: 0, busy: false });
     const [appState,   setAppState]   = useState({
@@ -1932,7 +1854,7 @@ export default function App() {
         try { localStorage.setItem(`app_${state.user.id}`, JSON.stringify(state)); } catch {}
     }
 
-    // ===== INIT with progress tracking =====
+    // ===== INIT =====
     useEffect(() => {
         const cached = localStorage.getItem(`app_${tgUser.id}`);
         if (cached) {
@@ -1942,10 +1864,8 @@ export default function App() {
         (async () => {
             try {
                 setLoadingProgress(5);
-
                 const config = await apiCall('getConfig');
                 setLoadingProgress(35);
-
                 const user = await apiCall('login', 'POST', {
                     id:        tgUser.id,
                     firstName: tgUser.first_name,
@@ -1953,7 +1873,6 @@ export default function App() {
                     refId:     tg.initDataUnsafe?.start_param || '',
                 });
                 setLoadingProgress(65);
-
                 const hist = await apiCall('getHistory', 'POST', { id: tgUser.id });
                 setLoadingProgress(95);
 
@@ -2005,13 +1924,7 @@ export default function App() {
         return () => {};
     }, []); // eslint-disable-line
 
-    // ===== Near-realtime auto-refresh =====
-    // Every 15 seconds, and immediately whenever the app returns to the
-    // foreground, the latest config is pulled in the background and
-    // applied silently — no interruption, balance/history untouched.
-    // This is what lets admin-panel changes (missions, tasks, ad slots,
-    // referral bonus, tap settings, etc.) show up without the user
-    // ever closing the app or clearing cache.
+    // ===== Auto-refresh =====
     useEffect(() => {
         if (!appReady) return;
 
@@ -2041,9 +1954,6 @@ export default function App() {
         };
     }, [appReady]);
 
-    // Ad scripts load based on whatever network + zone/block id the
-    // admin has set in config.adSlots — both Monetag and Adsgram
-    // are supported out of the box.
     function loadAdScripts(adSlots) {
         adSlots.forEach(s => {
             if (s.network === 'monetag' && !document.querySelector(`script[data-zone="${s.id}"]`)) {
@@ -2095,9 +2005,7 @@ export default function App() {
         showToast('success', `+${fmtAmt(rwrd, appState.config.currencySymbol)} reward!`);
     }
 
-    // ===== TAP COIN REWARD — returns the reward amount on success,
-    // or null on failure, so the coin button/float animation knows
-    // whether to play. =====
+    // ===== TAP =====
     const tapLock = useRef(false);
     async function handleTap() {
         if (tapLock.current) return null;
@@ -2131,10 +2039,7 @@ export default function App() {
         return rwrd;
     }
 
-    // ===== MINING REWARD — separate page, separate daily counter,
-    // same atomic per-tap server call pattern as Tap Coin so the
-    // balance can never be duplicated or spoofed. Returns the reward
-    // amount on success, or null on failure. =====
+    // ===== MINE =====
     const mineLock = useRef(false);
     async function handleMine() {
         if (mineLock.current) return null;
@@ -2168,8 +2073,7 @@ export default function App() {
         return rwrd;
     }
 
-    // ===== TASK REWARD — returns a boolean so the claim button can
-    // unlock/relock correctly. =====
+    // ===== TASK =====
     const taskLock = useRef(false);
     async function handleTaskBegin(id) {
         if (taskLock.current) return false;
@@ -2200,7 +2104,7 @@ export default function App() {
         return true;
     }
 
-    // ===== MISSION BONUS CLAIM =====
+    // ===== MISSION =====
     const missionLock = useRef(false);
     async function handleClaimMission(missionId) {
         if (missionLock.current) return;
@@ -2229,15 +2133,16 @@ export default function App() {
         tg.HapticFeedback.notificationOccurred('success');
     }
 
-    // ===== WITHDRAW (anti-spam guarded) =====
+    // ===== WITHDRAW =====
     async function handleWithdraw(payload) {
         if (withdrawLock.current) return false;
         withdrawLock.current = true;
         const rData = await apiCall('withdraw', 'POST', payload);
         withdrawLock.current = false;
         if (rData?.success) {
+            const newBalance = Math.max(0, (appState.user.balance || 0) - payload.amount);
             setAppState(prev => {
-                const next = { ...prev, user: { ...prev.user, balance: prev.user.balance - payload.amount } };
+                const next = { ...prev, user: { ...prev.user, balance: newBalance } };
                 saveLocal(next);
                 return next;
             });
@@ -2245,11 +2150,12 @@ export default function App() {
             if (updtHist) {
                 setAppState(prev => { const n = { ...prev, history: updtHist }; saveLocal(n); return n; });
             }
-            setWithdrawModal({
+            // Show full-screen withdrawal success
+            setWithdrawFullscreen({
                 amount: payload.amount,
                 method: payload.method,
                 account: payload.account,
-                balance: Math.max(0, (appState.user.balance || 0) - payload.amount),
+                balance: newBalance,
             });
             showToast('success', 'Withdrawal request submitted!');
             tg.HapticFeedback.notificationOccurred('success');
@@ -2284,7 +2190,6 @@ export default function App() {
         else showToast('warning', 'Support link is not configured.');
     }
 
-    // ===== NAVIGATION — instant, no blocking lock =====
     function handleNav(page) {
         if (page === activePage) return;
         setActivePage(page);
@@ -2311,43 +2216,44 @@ export default function App() {
             {!appReady && <Loader hiding={loaderHide} progress={loadingProgress} />}
             <Toast type={toast.type} msg={toast.msg} show={toast.show} />
 
-            {withdrawModal && (
-                <div className="modal-overlay" onClick={() => setWithdrawModal(null)}>
-                    <div className="modal-card" onClick={e => e.stopPropagation()}>
-                        <div className="modal-glow" />
-                        <div className="modal-icon">
+            {withdrawFullscreen && (
+                <div className="fullscreen-overlay" onClick={() => setWithdrawFullscreen(null)}>
+                    <div className="fullscreen-card" onClick={e => e.stopPropagation()}>
+                        <div className="fullscreen-glow" />
+                        <div className="fullscreen-icon">
                             <img src={ICONS.check} alt="" />
                         </div>
-                        <h3>Congratulations!</h3>
-                        <p className="modal-sub">Your withdrawal request has been submitted successfully</p>
-                        <div className="modal-details">
-                            <div className="modal-row">
+                        <h2>Withdrawal Submitted</h2>
+                        <p className="fullscreen-sub">Your request has been sent successfully</p>
+                        <div className="fullscreen-details">
+                            <div className="fullscreen-row">
                                 <span>Amount</span>
-                                <strong>{fmtAmt(withdrawModal.amount, sym)}</strong>
+                                <strong>{fmtAmt(withdrawFullscreen.amount, sym)}</strong>
                             </div>
-                            <div className="modal-row">
+                            <div className="fullscreen-row">
                                 <span>Payment Method</span>
-                                <strong>{withdrawModal.method}</strong>
+                                <strong>{withdrawFullscreen.method}</strong>
                             </div>
-                            <div className="modal-row">
+                            <div className="fullscreen-row">
                                 <span>Account</span>
-                                <strong>{withdrawModal.account}</strong>
+                                <strong>{withdrawFullscreen.account}</strong>
                             </div>
-                            <div className="modal-row">
+                            <div className="fullscreen-row">
                                 <span>New Balance</span>
-                                <strong>{fmtAmt(withdrawModal.balance, sym)}</strong>
+                                <strong>{fmtAmt(withdrawFullscreen.balance, sym)}</strong>
                             </div>
-                            <div className="modal-row">
+                            <div className="fullscreen-row">
                                 <span>Status</span>
                                 <strong className="status-txt">Pending</strong>
                             </div>
                         </div>
-                        <p className="modal-note">
-                            Our team usually processes requests within 24 hours.
-                            Once processed, the balance will be transferred to your account.
-                            Contact support if you run into any issues.
+                        <p className="fullscreen-note">
+                            Our team processes requests within 24 hours.
+                            Contact support if you need any assistance.
                         </p>
-                        <button className="btn-modal-close" onClick={() => setWithdrawModal(null)}>OK</button>
+                        <button className="btn-fullscreen-close" onClick={() => setWithdrawFullscreen(null)}>
+                            Done
+                        </button>
                     </div>
                 </div>
             )}
@@ -2364,7 +2270,13 @@ export default function App() {
                                 <div className="avatar-status" />
                             </div>
                             <div className="user-info">
-                                <h3>{u.firstName || tgUser.first_name}</h3>
+                                <div className="user-info-top">
+                                    <h3>{u.firstName || tgUser.first_name}</h3>
+                                    <span className="user-balance-pill">
+                                        <img src={ICONS.coin} alt="" />
+                                        ${(u.balance || 0).toFixed(2)} {sym}
+                                    </span>
+                                </div>
                                 <p>ID: {u.id || tgUser.id}</p>
                             </div>
                         </div>
@@ -2373,32 +2285,6 @@ export default function App() {
                             <div className="notif-dot" />
                         </button>
                     </header>
-
-                    {activePage === 'home' && (
-                        <div className="balance-card">
-                            <div className="bc-glow" />
-                            <div className="bc-grid" />
-                            <div className="bc-label">Total Balance</div>
-                            <div className="bc-amount">
-                                <span className="bc-dollar">$</span>{(u.balance || 0).toFixed(2)}
-                                <span className="bc-sym"> {sym}</span>
-                            </div>
-                            <div className="bc-footer">
-                                <div className="bc-mini">
-                                    <span>Total Earned</span>
-                                    <span>${(u.totalEarned || 0).toFixed(2)}</span>
-                                </div>
-                                <div className="bc-mini">
-                                    <span>Referrals</span>
-                                    <span>{u.referrals || 0}</span>
-                                </div>
-                                <div className="bc-mini">
-                                    <span>Ads Watched</span>
-                                    <span>{totalAdViews}</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
 
                     <main>
                         {activePage === 'home'     && <HomePage     appState={appState} onGoReferral={() => handleNav('referral')} onTap={handleTap} tapState={tapState} />}
