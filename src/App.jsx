@@ -5,10 +5,12 @@
  *  Currency: USDT ($)
  *  API: https://www.gajarbotol.site/nirob/api.php
  * ============================================================
- *  Changes:
- *   1. Balance card restored to Home page.
- *   2. Withdrawal success now uses a modal (not full-screen).
- *   3. All buttons still disable on click and re-enable after response.
+ *  CHANGES:
+ *   1. Tap system now uses LOCAL counter (no server call per tap).
+ *   2. Claim button appears after 1000 taps (configurable via tapBatchSize).
+ *   3. One API call to claim the batch reward.
+ *   4. Balance card restored on Home.
+ *   5. Withdrawal success uses a modal (not full-screen).
  * ============================================================
  */
 
@@ -449,7 +451,7 @@ const css = `
   .ref-teaser-text p { font-size:0.74rem; color:var(--text-dim); }
   .ref-teaser-arrow { font-size:1.2rem; color:var(--primary2); flex-shrink:0; }
 
-  /* ===================== TAP COIN ===================== */
+  /* ===================== TAP COIN (UPDATED) ===================== */
   .tap-card {
     background: linear-gradient(160deg, #11221c 0%, #0f1a17 55%, #131c1a 100%);
     border:1px solid rgba(212,162,76,0.32);
@@ -491,7 +493,8 @@ const css = `
     100% { opacity:0; transform:translate(-50%, -46px) scale(1); }
   }
   .tap-status { font-size:0.76rem; color:var(--text-dim); font-weight:600; }
-  .tap-status.limit { color:var(--danger); }
+  .tap-status.limit { color:var(--gold); font-weight:700; }
+  .tap-progress { margin-top:12px; }
 
   /* ===================== MINING PAGE ===================== */
   .mine-card {
@@ -986,7 +989,7 @@ function Toast({ type, msg, show }) {
 // ============================================================
 //  Home Page — balance card restored
 // ============================================================
-function HomePage({ appState, onGoReferral, onTap, tapState }) {
+function HomePage({ appState, onGoReferral, onTap, tapLocalCount, tapBatchSize, onClaimTapBatch, tapState }) {
     const u   = appState.user;
     const cfg = appState.config;
     const sym = cfg.currencySymbol || 'USDT';
@@ -996,7 +999,7 @@ function HomePage({ appState, onGoReferral, onTap, tapState }) {
 
     return (
         <div className="page active">
-            {/* Balance Card — restored exactly as before */}
+            {/* Balance Card */}
             <div className="balance-card">
                 <div className="bc-glow" />
                 <div className="bc-grid" />
@@ -1053,7 +1056,14 @@ function HomePage({ appState, onGoReferral, onTap, tapState }) {
             </div>
 
             {tapLimit > 0 && (
-                <TapCoinCard cfg={cfg} sym={sym} onTap={onTap} tapState={tapState} />
+                <TapCoinCard
+                    cfg={cfg}
+                    sym={sym}
+                    tapLocalCount={tapLocalCount}
+                    tapBatchSize={tapBatchSize}
+                    onTap={onTap}
+                    onClaim={onClaimTapBatch}
+                />
             )}
 
             <div className="ref-teaser" onClick={onGoReferral}>
@@ -1071,23 +1081,29 @@ function HomePage({ appState, onGoReferral, onTap, tapState }) {
 }
 
 // ============================================================
-//  Tap Coin
+//  Tap Coin (UPDATED: local counter + claim button)
 // ============================================================
-function TapCoinCard({ cfg, sym, onTap, tapState }) {
-    const limit = cfg.dailyTapLimit || 0;
-    const done  = tapState.count;
-    const busy  = tapState.busy;
-    const reached = done >= limit;
+function TapCoinCard({ cfg, sym, tapLocalCount, tapBatchSize, onTap, onClaim }) {
+    const reached = tapLocalCount >= tapBatchSize;
+    const progress = Math.min(100, (tapLocalCount / tapBatchSize) * 100);
     const [floats, setFloats] = useState([]);
+    const [claiming, setClaiming] = useState(false);
 
     async function handleTap() {
-        if (busy || reached) return;
+        if (reached) return;
         const reward = await onTap();
         if (reward != null) {
             const id = Date.now() + Math.random();
             setFloats(f => [...f, { id, reward }]);
             setTimeout(() => setFloats(f => f.filter(x => x.id !== id)), 900);
         }
+    }
+
+    async function handleClaim() {
+        if (!reached || claiming) return;
+        setClaiming(true);
+        await onClaim();
+        setClaiming(false);
     }
 
     return (
@@ -1097,19 +1113,49 @@ function TapCoinCard({ cfg, sym, onTap, tapState }) {
                 <span>Tap Coin</span>
             </div>
             <div className="tap-count">
-                <b>{done}</b>/{limit} taps used today
+                <b>{tapLocalCount}</b> / {tapBatchSize} taps to claim
             </div>
+
             <div style={{ position: 'relative', display: 'inline-block' }}>
-                <button className="tap-coin-btn" onClick={handleTap} disabled={busy || reached}>
-                    <div className="tap-ring" />
-                    <img src={ICONS.coin} alt="" />
-                </button>
+                {!reached ? (
+                    <button className="tap-coin-btn" onClick={handleTap}>
+                        <div className="tap-ring" />
+                        <img src={ICONS.coin} alt="" />
+                    </button>
+                ) : (
+                    <button
+                        className="tap-coin-btn"
+                        onClick={handleClaim}
+                        disabled={claiming}
+                        style={{ background: 'linear-gradient(135deg, #d4a24c, #b8842f)' }}
+                    >
+                        <div className="tap-ring" style={{ borderColor: 'rgba(212,162,76,0.8)' }} />
+                        <span style={{ fontSize: '1.2rem', fontWeight: 900, color: '#0a0d10' }}>
+                            {claiming ? '⏳' : '💰'}
+                        </span>
+                    </button>
+                )}
                 {floats.map(f => (
                     <div className="tap-float" key={f.id}>+{fmtAmt(f.reward, sym)}</div>
                 ))}
             </div>
+
+            <div className="tap-progress">
+                <div className="mine-progress-track">
+                    <div
+                        className="mine-progress-fill"
+                        style={{
+                            width: `${progress}%`,
+                            background: reached ? 'linear-gradient(90deg, #d4a24c, #b8842f)' : ''
+                        }}
+                    />
+                </div>
+            </div>
+
             <div className={`tap-status ${reached ? 'limit' : ''}`}>
-                {reached ? 'Daily tap limit reached' : busy ? 'Processing...' : 'Tap the coin to earn'}
+                {reached
+                    ? '🎉 Claim your bonus!'
+                    : `Keep tapping – ${tapBatchSize - tapLocalCount} taps left`}
             </div>
         </div>
     );
@@ -1881,10 +1927,17 @@ export default function App() {
     const [activePage, setActivePage] = useState('home');
     const [toast,      setToast]      = useState({ show: false, type: 'success', msg: '' });
     const [loadingProgress, setLoadingProgress] = useState(0);
-    const [withdrawModal, setWithdrawModal] = useState(null); // now a modal, not fullscreen
+    const [withdrawModal, setWithdrawModal] = useState(null);
     const [tapState, setTapState] = useState({ count: 0, busy: false });
     const [mineState, setMineState] = useState({ count: 0, busy: false });
-    const [appState,   setAppState]   = useState({
+
+    // ---------- NEW: Local tap counter ----------
+    const [tapLocalCount, setTapLocalCount] = useState(() => {
+        const saved = localStorage.getItem(`tapLocal_${tgUser.id}`);
+        return saved ? parseInt(saved, 10) : 0;
+    });
+
+    const [appState, setAppState] = useState({
         user: {
             id: tgUser.id,
             firstName: tgUser.first_name,
@@ -1901,6 +1954,12 @@ export default function App() {
 
     const toastTimer = useRef(null);
     const withdrawLock = useRef(false);
+    const tapLock = useRef(false); // for batch claim
+
+    // ---------- Persist local tap count ----------
+    useEffect(() => {
+        localStorage.setItem(`tapLocal_${tgUser.id}`, String(tapLocalCount));
+    }, [tapLocalCount, tgUser.id]);
 
     const showToast = useCallback((type, msg) => {
         setToast({ show: true, type, msg });
@@ -2066,38 +2125,55 @@ export default function App() {
         showToast('success', `+${fmtAmt(rwrd, appState.config.currencySymbol)} reward!`);
     }
 
-    // ===== TAP =====
-    const tapLock = useRef(false);
-    async function handleTap() {
-        if (tapLock.current) return null;
-        tapLock.current = true;
-        setTapState(t => ({ ...t, busy: true }));
-        const res = await apiCall('claimTap', 'POST', {});
-        tapLock.current = false;
-        if (!res || res.error) {
-            if (res?.code !== 'DAILY_LIMIT') showToast('error', res?.error || 'Failed to register tap.');
-            setTapState(t => ({ ...t, busy: false, count: res?.count ?? t.count }));
-            return null;
+    // ===== TAP (LOCAL) =====
+    const tapReward = appState.config.tapReward || 0.001;
+    const tapBatchSize = appState.config.tapBatchSize || 1000;
+
+    async function handleTapLocal() {
+        if (tapLocalCount >= tapBatchSize) return null;
+        setTapLocalCount(prev => prev + 1);
+        try { tg.HapticFeedback.impactOccurred('light'); } catch {}
+        return tapReward;
+    }
+
+    // ===== CLAIM BATCH =====
+    async function handleClaimTapBatch() {
+        const totalTaps = tapLocalCount;
+        if (totalTaps < tapBatchSize) {
+            showToast('warning', `Need ${tapBatchSize} taps to claim.`);
+            return;
         }
-        const rwrd = res.reward;
-        const today = new Date().toISOString().slice(0, 10);
+        if (tapLock.current) return;
+        tapLock.current = true;
+
+        const res = await apiCall('claimTapBatch', 'POST', { count: totalTaps });
+        tapLock.current = false;
+
+        if (!res || res.error) {
+            showToast('error', res?.error || 'Failed to claim bonus.');
+            return;
+        }
+
+        const reward = res.reward; // total bonus
+        const sym = appState.config.currencySymbol || 'USDT';
         setAppState(prev => {
             const next = {
                 ...prev,
                 user: {
                     ...prev.user,
                     balance: res.newBalance,
-                    totalEarned: (prev.user.totalEarned || 0) + rwrd,
-                    dailyTaps: res.count,
-                    lastActive: today,
+                    totalEarned: (prev.user.totalEarned || 0) + reward,
+                    dailyTaps: res.dailyTaps,
+                    lastActive: new Date().toISOString().slice(0, 10),
                 },
             };
             saveLocal(next);
             return next;
         });
-        setTapState({ count: res.count, busy: false });
-        try { tg.HapticFeedback.impactOccurred('light'); } catch {}
-        return rwrd;
+
+        setTapLocalCount(0);
+        showToast('success', `🎉 Bonus claimed! +${fmtAmt(reward, sym)}`);
+        tg.HapticFeedback.notificationOccurred('success');
     }
 
     // ===== MINE =====
@@ -2194,7 +2270,7 @@ export default function App() {
         tg.HapticFeedback.notificationOccurred('success');
     }
 
-    // ===== WITHDRAW — now sets a modal instead of full-screen =====
+    // ===== WITHDRAW =====
     async function handleWithdraw(payload) {
         if (withdrawLock.current) return false;
         withdrawLock.current = true;
@@ -2211,7 +2287,6 @@ export default function App() {
             if (updtHist) {
                 setAppState(prev => { const n = { ...prev, history: updtHist }; saveLocal(n); return n; });
             }
-            // Show modal (not fullscreen)
             setWithdrawModal({
                 amount: payload.amount,
                 method: payload.method,
@@ -2340,7 +2415,17 @@ export default function App() {
                     </header>
 
                     <main>
-                        {activePage === 'home'     && <HomePage     appState={appState} onGoReferral={() => handleNav('referral')} onTap={handleTap} tapState={tapState} />}
+                        {activePage === 'home' && (
+                            <HomePage
+                                appState={appState}
+                                onGoReferral={() => handleNav('referral')}
+                                onTap={handleTapLocal}
+                                tapLocalCount={tapLocalCount}
+                                tapBatchSize={tapBatchSize}
+                                onClaimTapBatch={handleClaimTapBatch}
+                                tapState={tapState}
+                            />
+                        )}
                         {activePage === 'earn'     && <EarnPage     appState={appState} onAdDone={handleAdDone} onTaskBegin={handleTaskBegin} />}
                         {activePage === 'mining'   && <MiningPage   appState={appState} onMine={handleMine} mineState={mineState} />}
                         {activePage === 'mission'  && <MissionPage  appState={appState} onClaimMission={handleClaimMission} />}
