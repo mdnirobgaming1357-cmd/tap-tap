@@ -5,17 +5,10 @@
  *  Currency: USDT ($)
  *  API: https://www.gajarbotol.site/nirob/api.php
  * ============================================================
- *  Changes made:
- *   1. Balance card removed from Home page.
- *   2. Balance moved to top navigation — shown next to user name.
- *   3. Withdrawal success is now a full-screen overlay with a
- *      unique, premium design (not a modal).
- *   4. All action buttons (ad, task, mission, tap, mine, withdraw)
- *      are properly disabled the moment they are clicked and only
- *      re-enable after the server responds or an error occurs.
- *   5. Mission claim button now shows a processing state.
- *   6. Everything else remains exactly as before — no extra
- *      features added, no data models changed.
+ *  Changes:
+ *   1. Balance card restored to Home page.
+ *   2. Withdrawal success now uses a modal (not full-screen).
+ *   3. All buttons still disable on click and re-enable after response.
  * ============================================================
  */
 
@@ -201,78 +194,80 @@ const css = `
   .toast.show { top:20px; }
   .toast-icon { width:18px; height:18px; flex-shrink:0; }
 
-  /* ===================== FULL-SCREEN WITHDRAWAL SUCCESS ===================== */
-  .fullscreen-overlay {
-    position:fixed; inset:0; z-index:500;
-    background:rgba(4,6,7,0.88);
-    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
-    display:flex; flex-direction:column;
-    align-items:center; justify-content:center;
-    animation:fadeUp 0.4s ease both;
-    padding:32px 20px;
+  /* ===================== SUCCESS MODAL (Withdrawal) ===================== */
+  .modal-overlay {
+    position:fixed; inset:0; z-index:300;
+    background:rgba(4,6,7,0.72);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    display:flex; align-items:center; justify-content:center;
+    animation:fadeUp 0.25s ease both;
   }
-  .fullscreen-card {
-    max-width:420px; width:100%;
+  .modal-card {
+    width:calc(100% - 44px); max-width:380px;
     background:linear-gradient(170deg, #131c22 0%, #10151a 55%, #121b1c 100%);
     border:1px solid rgba(22,184,138,0.32);
-    border-radius:32px; padding:44px 28px 32px;
+    border-radius:26px; padding:30px 24px 24px;
     position:relative; overflow:hidden; text-align:center;
-    box-shadow:0 40px 80px rgba(0,0,0,0.7), var(--glow-violet-strong);
+    box-shadow:0 30px 80px rgba(0,0,0,0.6), var(--glow-violet);
     animation:modalPop 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
   }
-  .fullscreen-card::before {
-    content:''; position:absolute; top:0; left:0; right:0; height:3.5px;
+  @keyframes modalPop {
+    from { opacity:0; transform:scale(0.7) translateY(40px); }
+    to   { opacity:1; transform:scale(1) translateY(0); }
+  }
+  .modal-card::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
     background:linear-gradient(90deg, var(--grad-a), var(--grad-b), var(--gold));
   }
-  .fullscreen-glow {
+  .modal-glow {
     position:absolute; inset:0; pointer-events:none;
     background: radial-gradient(ellipse at 50% 0%, rgba(22,184,138,0.22) 0%, transparent 55%);
   }
-  .fullscreen-icon {
-    width:96px; height:96px; margin:0 auto 20px; border-radius:50%;
-    background:rgba(52,209,160,0.12); border:1.5px solid rgba(52,209,160,0.4);
+  .modal-icon {
+    width:72px; height:72px; margin:0 auto 16px; border-radius:50%;
+    background:rgba(52,209,160,0.12); border:1px solid rgba(52,209,160,0.35);
     display:flex; align-items:center; justify-content:center;
-    box-shadow:0 0 50px rgba(52,209,160,0.25);
+    box-shadow:0 0 30px rgba(52,209,160,0.2);
     position:relative; z-index:1;
   }
-  .fullscreen-icon img { width:44px; height:44px; }
-  .fullscreen-card h2 {
-    font-size:2rem; font-weight:900; letter-spacing:-1px; color:#fff;
-    position:relative; z-index:1; margin-bottom:4px;
-  }
-  .fullscreen-sub {
-    font-size:0.92rem; color:var(--text-mid); margin-bottom:20px;
+  .modal-icon img { width:36px; height:36px; }
+  .modal-card h3 {
+    font-size:1.5rem; font-weight:900; letter-spacing:-0.5px; color:#fff;
     position:relative; z-index:1;
   }
-  .fullscreen-details {
-    background:rgba(10,13,16,0.5); border:1px solid var(--border2);
-    border-radius:18px; padding:10px 18px; margin-bottom:20px;
+  .modal-sub {
+    font-size:0.82rem; color:var(--text-mid); margin-top:6px;
     position:relative; z-index:1;
   }
-  .fullscreen-row {
+  .modal-details {
+    margin:20px 0 14px; background:rgba(10,13,16,0.5);
+    border:1px solid var(--border2); border-radius:16px;
+    padding:6px 16px; position:relative; z-index:1;
+  }
+  .modal-row {
     display:flex; justify-content:space-between; align-items:center;
-    padding:12px 0; border-bottom:1px solid var(--border);
+    padding:11px 0; border-bottom:1px solid var(--border);
   }
-  .fullscreen-row:last-child { border-bottom:none; }
-  .fullscreen-row span { font-size:0.8rem; color:var(--text-dim); font-weight:500; }
-  .fullscreen-row strong {
-    font-size:0.9rem; color:var(--text); font-weight:700;
+  .modal-row:last-child { border-bottom:none; }
+  .modal-row span { font-size:0.78rem; color:var(--text-dim); font-weight:500; }
+  .modal-row strong {
+    font-size:0.86rem; color:var(--text); font-weight:700;
     font-variant-numeric:tabular-nums; max-width:60%; text-align:right;
     word-break:break-all;
   }
-  .fullscreen-row strong.status-txt { color:var(--warning); }
-  .fullscreen-note {
-    font-size:0.78rem; color:var(--text-dim); line-height:1.7;
-    margin-bottom:22px; position:relative; z-index:1;
+  .modal-row strong.status-txt { color:var(--warning); }
+  .modal-note {
+    font-size:0.74rem; color:var(--text-dim); line-height:1.7;
+    margin-bottom:18px; position:relative; z-index:1;
   }
-  .btn-fullscreen-close {
-    width:100%; padding:16px; border:none; border-radius:16px;
+  .btn-modal-close {
+    width:100%; padding:15px; border:none; border-radius:14px;
     background:linear-gradient(135deg, var(--grad-a), var(--grad-b));
-    color:#fff; font-size:1rem; font-weight:800; cursor:pointer;
+    color:#fff; font-size:0.95rem; font-weight:800; cursor:pointer;
     position:relative; z-index:1;
-    transition:0.2s; box-shadow:0 6px 28px rgba(22,184,138,0.4);
+    transition:0.2s; box-shadow:0 6px 24px rgba(22,184,138,0.4);
   }
-  .btn-fullscreen-close:active { transform:scale(0.97); opacity:0.9; }
+  .btn-modal-close:active { transform:scale(0.97); opacity:0.9; }
 
   /* ===================== TOP NAV ===================== */
   .top-nav {
@@ -296,27 +291,10 @@ const css = `
     0%,100%{box-shadow:0 0 0 0 rgba(52,209,160,0.4)}
     50%{box-shadow:0 0 0 4px rgba(52,209,160,0)}
   }
-  .user-info {
-    flex:1; min-width:0;
-    display:flex; flex-direction:column; gap:1px;
-  }
-  .user-info-top {
-    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-  }
+  .user-info { flex:1; min-width:0; }
   .user-info h3 {
     font-size:0.95rem; font-weight:700; color:var(--text);
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:110px;
-  }
-  .user-balance-pill {
-    font-size:0.75rem; font-weight:700;
-    color:#fff; background:rgba(22,184,138,0.16);
-    border:1px solid rgba(22,184,138,0.28);
-    border-radius:100px; padding:2px 12px; white-space:nowrap;
-    display:inline-flex; align-items:center; gap:4px;
-    box-shadow:0 0 18px rgba(22,184,138,0.12);
-  }
-  .user-balance-pill img {
-    width:14px; height:14px; filter:brightness(0.9);
   }
   .user-info p {
     font-size:0.65rem; color:var(--text-dim); letter-spacing:0.3px;
@@ -343,6 +321,64 @@ const css = `
     from { opacity:0; transform:translateY(24px) scale(0.96); }
     to   { opacity:1; transform:translateY(0) scale(1); }
   }
+
+  /* ===================== BALANCE CARD ===================== */
+  .balance-card {
+    margin: 0 16px 20px;
+    background: linear-gradient(148deg, #11221c 0%, #0f1a17 38%, #131c1a 72%, #11221c 100%);
+    border:1px solid rgba(22,184,138,0.38);
+    border-radius:var(--radius-lg); padding:28px 24px 24px;
+    position:relative; overflow:hidden;
+    box-shadow: var(--glow-violet), 0 0 0 1px rgba(22,184,138,0.14) inset;
+    animation: cardGlowIn 0.9s cubic-bezier(0.34,1.56,0.64,1) both;
+    transition:box-shadow 0.6s;
+  }
+  .balance-card:hover {
+    box-shadow: var(--glow-violet-strong), 0 0 0 2px rgba(22,184,138,0.26) inset;
+  }
+  @keyframes cardGlowIn {
+    from { transform:scale(0.85) translateY(30px); opacity:0; box-shadow:0 0 0 rgba(22,184,138,0); }
+    to   { transform:scale(1) translateY(0); opacity:1; box-shadow:var(--glow-violet); }
+  }
+  .bc-glow {
+    position:absolute; inset:0; pointer-events:none;
+    background: radial-gradient(ellipse at 18% 8%, rgba(22,184,138,0.32) 0%, transparent 52%),
+                radial-gradient(ellipse at 82% 92%, rgba(212,162,76,0.18) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(127,230,196,0.08) 0%, transparent 40%);
+    animation: glowDrift 7s ease-in-out infinite alternate;
+  }
+  @keyframes glowDrift {
+    0% { opacity:0.6; transform:scale(1) rotate(-2deg); }
+    100% { opacity:1; transform:scale(1.08) rotate(2deg); }
+  }
+  .bc-grid {
+    position:absolute; inset:0; pointer-events:none;
+    background-image: linear-gradient(rgba(22,184,138,0.05) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(22,184,138,0.05) 1px, transparent 1px);
+    background-size: 28px 28px;
+    opacity:0.5;
+  }
+  .bc-label {
+    font-size:0.68rem; text-transform:uppercase; letter-spacing:3px;
+    color:rgba(127,230,196,0.85); font-weight:700; margin-bottom:10px;
+    position:relative; z-index:1;
+  }
+  .bc-amount {
+    font-size:3.2rem; font-weight:900; color:#fff; letter-spacing:-2px; line-height:1;
+    position:relative; z-index:1;
+    font-variant-numeric:tabular-nums;
+    text-shadow:0 0 60px rgba(22,184,138,0.35);
+  }
+  .bc-dollar { font-size:1.7rem; font-weight:700; opacity:0.75; margin-right:2px; }
+  .bc-sym { font-size:1.3rem; font-weight:600; opacity:0.7; }
+  .bc-footer {
+    display:flex; gap:20px; margin-top:22px; position:relative; z-index:1;
+    padding-top:16px; border-top:1px solid rgba(22,184,138,0.18);
+  }
+  .bc-mini span:first-child {
+    font-size:0.65rem; color:rgba(127,230,196,0.6); font-weight:600; display:block;
+  }
+  .bc-mini span:last-child { font-size:0.95rem; color:#fff; font-weight:700; font-variant-numeric:tabular-nums; }
 
   /* ===================== SECTION HEADING ===================== */
   .sec-head {
@@ -948,7 +984,7 @@ function Toast({ type, msg, show }) {
 }
 
 // ============================================================
-//  Home Page — balance card removed, balance shown in top nav
+//  Home Page — balance card restored
 // ============================================================
 function HomePage({ appState, onGoReferral, onTap, tapState }) {
     const u   = appState.user;
@@ -960,7 +996,32 @@ function HomePage({ appState, onGoReferral, onTap, tapState }) {
 
     return (
         <div className="page active">
-            <div className="stats-grid" style={{ marginTop: 4 }}>
+            {/* Balance Card — restored exactly as before */}
+            <div className="balance-card">
+                <div className="bc-glow" />
+                <div className="bc-grid" />
+                <div className="bc-label">Total Balance</div>
+                <div className="bc-amount">
+                    <span className="bc-dollar">$</span>{(u.balance || 0).toFixed(2)}
+                    <span className="bc-sym"> {sym}</span>
+                </div>
+                <div className="bc-footer">
+                    <div className="bc-mini">
+                        <span>Total Earned</span>
+                        <span>${(u.totalEarned || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="bc-mini">
+                        <span>Referrals</span>
+                        <span>{u.referrals || 0}</span>
+                    </div>
+                    <div className="bc-mini">
+                        <span>Ads Watched</span>
+                        <span>{totalAdViews}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="stats-grid" style={{ marginTop: 0 }}>
                 <div className="stat-card">
                     <div className="stat-icon-wrap blue">
                         <img src={ICONS.tv} alt="" />
@@ -1820,7 +1881,7 @@ export default function App() {
     const [activePage, setActivePage] = useState('home');
     const [toast,      setToast]      = useState({ show: false, type: 'success', msg: '' });
     const [loadingProgress, setLoadingProgress] = useState(0);
-    const [withdrawFullscreen, setWithdrawFullscreen] = useState(null);
+    const [withdrawModal, setWithdrawModal] = useState(null); // now a modal, not fullscreen
     const [tapState, setTapState] = useState({ count: 0, busy: false });
     const [mineState, setMineState] = useState({ count: 0, busy: false });
     const [appState,   setAppState]   = useState({
@@ -2133,7 +2194,7 @@ export default function App() {
         tg.HapticFeedback.notificationOccurred('success');
     }
 
-    // ===== WITHDRAW =====
+    // ===== WITHDRAW — now sets a modal instead of full-screen =====
     async function handleWithdraw(payload) {
         if (withdrawLock.current) return false;
         withdrawLock.current = true;
@@ -2150,8 +2211,8 @@ export default function App() {
             if (updtHist) {
                 setAppState(prev => { const n = { ...prev, history: updtHist }; saveLocal(n); return n; });
             }
-            // Show full-screen withdrawal success
-            setWithdrawFullscreen({
+            // Show modal (not fullscreen)
+            setWithdrawModal({
                 amount: payload.amount,
                 method: payload.method,
                 account: payload.account,
@@ -2216,44 +2277,42 @@ export default function App() {
             {!appReady && <Loader hiding={loaderHide} progress={loadingProgress} />}
             <Toast type={toast.type} msg={toast.msg} show={toast.show} />
 
-            {withdrawFullscreen && (
-                <div className="fullscreen-overlay" onClick={() => setWithdrawFullscreen(null)}>
-                    <div className="fullscreen-card" onClick={e => e.stopPropagation()}>
-                        <div className="fullscreen-glow" />
-                        <div className="fullscreen-icon">
+            {withdrawModal && (
+                <div className="modal-overlay" onClick={() => setWithdrawModal(null)}>
+                    <div className="modal-card" onClick={e => e.stopPropagation()}>
+                        <div className="modal-glow" />
+                        <div className="modal-icon">
                             <img src={ICONS.check} alt="" />
                         </div>
-                        <h2>Withdrawal Submitted</h2>
-                        <p className="fullscreen-sub">Your request has been sent successfully</p>
-                        <div className="fullscreen-details">
-                            <div className="fullscreen-row">
+                        <h3>Withdrawal Submitted</h3>
+                        <p className="modal-sub">Your request has been sent successfully</p>
+                        <div className="modal-details">
+                            <div className="modal-row">
                                 <span>Amount</span>
-                                <strong>{fmtAmt(withdrawFullscreen.amount, sym)}</strong>
+                                <strong>{fmtAmt(withdrawModal.amount, sym)}</strong>
                             </div>
-                            <div className="fullscreen-row">
+                            <div className="modal-row">
                                 <span>Payment Method</span>
-                                <strong>{withdrawFullscreen.method}</strong>
+                                <strong>{withdrawModal.method}</strong>
                             </div>
-                            <div className="fullscreen-row">
+                            <div className="modal-row">
                                 <span>Account</span>
-                                <strong>{withdrawFullscreen.account}</strong>
+                                <strong>{withdrawModal.account}</strong>
                             </div>
-                            <div className="fullscreen-row">
+                            <div className="modal-row">
                                 <span>New Balance</span>
-                                <strong>{fmtAmt(withdrawFullscreen.balance, sym)}</strong>
+                                <strong>{fmtAmt(withdrawModal.balance, sym)}</strong>
                             </div>
-                            <div className="fullscreen-row">
+                            <div className="modal-row">
                                 <span>Status</span>
                                 <strong className="status-txt">Pending</strong>
                             </div>
                         </div>
-                        <p className="fullscreen-note">
+                        <p className="modal-note">
                             Our team processes requests within 24 hours.
                             Contact support if you need any assistance.
                         </p>
-                        <button className="btn-fullscreen-close" onClick={() => setWithdrawFullscreen(null)}>
-                            Done
-                        </button>
+                        <button className="btn-modal-close" onClick={() => setWithdrawModal(null)}>OK</button>
                     </div>
                 </div>
             )}
@@ -2270,13 +2329,7 @@ export default function App() {
                                 <div className="avatar-status" />
                             </div>
                             <div className="user-info">
-                                <div className="user-info-top">
-                                    <h3>{u.firstName || tgUser.first_name}</h3>
-                                    <span className="user-balance-pill">
-                                        <img src={ICONS.coin} alt="" />
-                                        ${(u.balance || 0).toFixed(2)} {sym}
-                                    </span>
-                                </div>
+                                <h3>{u.firstName || tgUser.first_name}</h3>
                                 <p>ID: {u.id || tgUser.id}</p>
                             </div>
                         </div>
