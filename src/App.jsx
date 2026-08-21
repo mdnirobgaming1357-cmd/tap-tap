@@ -546,6 +546,18 @@ const css = `
   .mine-status { font-size:0.76rem; color:var(--text-dim); font-weight:600; }
   .mine-status.limit { color:var(--danger); }
   .mine-status.done { color:var(--primary2); }
+  .btn-mine-claim {
+    width:100%; padding:14px; border:none; border-radius:14px;
+    background:linear-gradient(135deg, var(--gold2), var(--gold));
+    color:#0a0d10; font-size:0.92rem; font-weight:800; cursor:pointer;
+    margin-top:14px; transition:0.2s; box-shadow:0 6px 22px rgba(212,162,76,0.32);
+    animation:claimPulse 1.2s ease-in-out infinite;
+  }
+  .btn-mine-claim:active:not(:disabled) { transform:scale(0.97); }
+  .btn-mine-claim:disabled {
+    opacity:0.6; cursor:not-allowed; animation:none;
+    background:var(--surface2); color:var(--text-dim); box-shadow:none;
+  }
 
   /* ===================== ADS ===================== */
   .ad-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -1117,25 +1129,31 @@ function TapCoinCard({ cfg, sym, onTap, tapState }) {
 
 // ============================================================
 //  Mining Page
+//  Taps only build progress. The accumulated bonus is revealed
+//  and credited only once the daily target is reached and the
+//  user presses "Claim Bonus".
 // ============================================================
-function MiningPage({ appState, onMine, mineState }) {
+function MiningPage({ appState, onMine, onClaimMineBonus, mineState }) {
     const cfg    = appState.config;
     const sym    = cfg.currencySymbol || 'USDT';
     const limit  = cfg.dailyMiningLimit || 0;
     const reward = cfg.miningReward || 0;
     const done   = mineState.count;
     const busy   = mineState.busy;
+    const claiming = mineState.claiming;
+    const claimed = mineState.claimed;
     const reached = limit > 0 && done >= limit;
     const pct    = limit > 0 ? Math.min(100, (done / limit) * 100) : 0;
     const total  = (reward * limit).toFixed(2);
+    const pendingReward = mineState.pendingReward || 0;
     const [floats, setFloats] = useState([]);
 
     async function handleTap() {
         if (busy || reached) return;
-        const r = await onMine();
-        if (r != null) {
+        const ok = await onMine();
+        if (ok) {
             const id = Date.now() + Math.random();
-            setFloats(f => [...f, { id, reward: r }]);
+            setFloats(f => [...f, { id }]);
             setTimeout(() => setFloats(f => f.filter(x => x.id !== id)), 900);
         }
     }
@@ -1175,7 +1193,7 @@ function MiningPage({ appState, onMine, mineState }) {
                         <span className="mine-letter">T</span>
                     </button>
                     {floats.map(f => (
-                        <div className="mine-float" key={f.id}>{fmtMineAmt(f.reward, sym)}</div>
+                        <div className="mine-float" key={f.id}>+1</div>
                     ))}
                 </div>
 
@@ -1185,9 +1203,21 @@ function MiningPage({ appState, onMine, mineState }) {
                 <div className={`mine-status ${reached ? 'done' : ''}`}>
                     <b>{done}</b>/{limit} taps today
                 </div>
-                <div className={`mine-status ${reached ? 'limit' : ''}`} style={{ marginTop: 6 }}>
-                    {reached ? 'Today\'s mining run is complete. Come back tomorrow!' : busy ? 'Processing...' : 'Keep tapping the T to mine'}
+                <div className={`mine-status ${reached && !claimed ? '' : reached ? 'done' : ''}`} style={{ marginTop: 6 }}>
+                    {reached
+                        ? (claimed ? 'Bonus claimed. Come back tomorrow!' : 'Target reached! Claim your bonus below.')
+                        : (busy ? 'Processing...' : 'Keep tapping the T to mine')}
                 </div>
+
+                {reached && (
+                    <button
+                        className="btn-mine-claim"
+                        onClick={onClaimMineBonus}
+                        disabled={claiming || claimed || pendingReward <= 0}
+                    >
+                        {claiming ? 'Claiming...' : claimed ? 'Claimed' : `Claim ${fmtAmt(pendingReward || total, sym)}`}
+                    </button>
+                )}
             </div>
         </div>
     );
@@ -1438,10 +1468,27 @@ function AdBox({ slot, index, done, limit, onAdDone, sym }) {
 
     function openAd() {
         return new Promise(resolve => {
+            // Monetag: show_{id}() returns a Promise that resolves/rejects when
+            // the ad actually finishes. We must track that so adOpenRef is
+            // cleared correctly instead of staying "open" forever (which used
+            // to force the flow to sit through a 30s stall before the reward
+            // and cooldown timer would ever start).
             if (slot.network === 'monetag' && window[`show_${slot.id}`]) {
                 adOpenRef.current = true;
                 adFailedRef.current = false;
-                try { window[`show_${slot.id}`](); } catch {}
+                try {
+                    const ret = window[`show_${slot.id}`]();
+                    if (ret && typeof ret.then === 'function') {
+                        ret.then(() => { adOpenRef.current = false; })
+                           .catch(() => { adOpenRef.current = false; adFailedRef.current = true; });
+                    } else {
+                        // SDK gave us no promise to await — treat the ad as
+                        // closed immediately so we don't get stuck waiting.
+                        adOpenRef.current = false;
+                    }
+                } catch {
+                    adOpenRef.current = false;
+                }
                 resolve(true);
                 return;
             }
@@ -1883,7 +1930,14 @@ export default function App() {
     const [loadingProgress, setLoadingProgress] = useState(0);
     const [withdrawModal, setWithdrawModal] = useState(null); // now a modal, not fullscreen
     const [tapState, setTapState] = useState({ count: 0, busy: false });
-    const [mineState, setMineState] = useState({ count: 0, busy: false });
+    const [mineState, setMineState] = useState({
+        count: 0,
+        busy: false,
+        pendingReward: 0,
+        pendingBalance: null,
+        claiming: false,
+        claimed: false,
+    });
     const [appState,   setAppState]   = useState({
         user: {
             id: tgUser.id,
@@ -1956,10 +2010,24 @@ export default function App() {
                 const today = new Date().toISOString().slice(0, 10);
                 if (user && user.lastActive === today) {
                     setTapState(t => ({ ...t, count: user.dailyTaps || 0 }));
-                    setMineState(m => ({ ...m, count: user.dailyMines || 0 }));
+                    setMineState(m => ({
+                        ...m,
+                        count: user.dailyMines || 0,
+                        pendingReward: 0,
+                        pendingBalance: null,
+                        claiming: false,
+                        claimed: (user.dailyMines || 0) > 0 && (config?.dailyMiningLimit || 0) > 0 && (user.dailyMines || 0) >= (config?.dailyMiningLimit || 0),
+                    }));
                 } else {
                     setTapState(t => ({ ...t, count: 0 }));
-                    setMineState(m => ({ ...m, count: 0 }));
+                    setMineState(m => ({
+                        ...m,
+                        count: 0,
+                        pendingReward: 0,
+                        pendingBalance: null,
+                        claiming: false,
+                        claimed: false,
+                    }));
                 }
 
                 if (config?.adSlots) loadAdScripts(config.adSlots);
@@ -2101,9 +2169,13 @@ export default function App() {
     }
 
     // ===== MINE =====
+    // Each tap is still validated & rewarded server-side (server stays
+    // authoritative), but the reward/balance is kept in local "pending"
+    // state and NOT shown to the user until the daily target is reached
+    // and they press "Claim Bonus".
     const mineLock = useRef(false);
     async function handleMine() {
-        if (mineLock.current) return null;
+        if (mineLock.current) return false;
         mineLock.current = true;
         setMineState(m => ({ ...m, busy: true }));
         const res = await apiCall('claimMine', 'POST', {});
@@ -2111,7 +2183,7 @@ export default function App() {
         if (!res || res.error) {
             if (res?.code !== 'DAILY_LIMIT') showToast('error', res?.error || 'Failed to register tap.');
             setMineState(m => ({ ...m, busy: false, count: res?.count ?? m.count }));
-            return null;
+            return false;
         }
         const rwrd = res.reward;
         const today = new Date().toISOString().slice(0, 10);
@@ -2120,8 +2192,6 @@ export default function App() {
                 ...prev,
                 user: {
                     ...prev.user,
-                    balance: res.newBalance,
-                    totalEarned: (prev.user.totalEarned || 0) + rwrd,
                     dailyMines: res.count,
                     lastActive: today,
                 },
@@ -2129,9 +2199,48 @@ export default function App() {
             saveLocal(next);
             return next;
         });
-        setMineState({ count: res.count, busy: false });
+        setMineState(m => ({
+            ...m,
+            count: res.count,
+            busy: false,
+            pendingReward: (m.pendingReward || 0) + rwrd,
+            pendingBalance: res.newBalance,
+        }));
         try { tg.HapticFeedback.impactOccurred('light'); } catch {}
-        return rwrd;
+        return true;
+    }
+
+    // ===== CLAIM MINING BONUS =====
+    // Reveals & credits the accumulated mining reward once, after the
+    // daily target has been reached.
+    const mineClaimLock = useRef(false);
+    async function handleClaimMineBonus() {
+        if (mineClaimLock.current) return;
+        if (mineState.claimed || (mineState.pendingReward || 0) <= 0) return;
+        mineClaimLock.current = true;
+        setMineState(m => ({ ...m, claiming: true }));
+
+        const bonus = mineState.pendingReward;
+        const newBalance = mineState.pendingBalance;
+
+        setAppState(prev => {
+            const next = {
+                ...prev,
+                user: {
+                    ...prev.user,
+                    balance: newBalance != null ? newBalance : (prev.user.balance || 0) + bonus,
+                    totalEarned: (prev.user.totalEarned || 0) + bonus,
+                },
+            };
+            saveLocal(next);
+            return next;
+        });
+
+        setMineState(m => ({ ...m, claiming: false, claimed: true, pendingReward: 0 }));
+        mineClaimLock.current = false;
+
+        showToast('success', `+${fmtAmt(bonus, appState.config.currencySymbol)} mining bonus claimed!`);
+        try { tg.HapticFeedback.notificationOccurred('success'); } catch {}
     }
 
     // ===== TASK =====
@@ -2203,177 +2312,4 @@ export default function App() {
         if (rData?.success) {
             const newBalance = Math.max(0, (appState.user.balance || 0) - payload.amount);
             setAppState(prev => {
-                const next = { ...prev, user: { ...prev.user, balance: newBalance } };
-                saveLocal(next);
-                return next;
-            });
-            const updtHist = await apiCall('getHistory', 'POST', { id: appState.user.id });
-            if (updtHist) {
-                setAppState(prev => { const n = { ...prev, history: updtHist }; saveLocal(n); return n; });
-            }
-            // Show modal (not fullscreen)
-            setWithdrawModal({
-                amount: payload.amount,
-                method: payload.method,
-                account: payload.account,
-                balance: newBalance,
-            });
-            showToast('success', 'Withdrawal request submitted!');
-            tg.HapticFeedback.notificationOccurred('success');
-            return true;
-        } else {
-            showToast('error', rData?.message || 'Server error. Please try again.');
-            return false;
-        }
-    }
-
-    function handleCopy(link) {
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(link).then(() => showToast('success', 'Link copied!'));
-        } else {
-            const tmp = document.createElement('input');
-            tmp.value = link;
-            document.body.appendChild(tmp);
-            tmp.select();
-            document.execCommand('copy');
-            document.body.removeChild(tmp);
-            showToast('success', 'Link copied!');
-        }
-        tg.HapticFeedback.notificationOccurred('success');
-    }
-
-    function handleShare(link) {
-        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join now and start earning!')}`);
-    }
-
-    function openSupport() {
-        if (appState.config.supportLink) tg.openLink(appState.config.supportLink);
-        else showToast('warning', 'Support link is not configured.');
-    }
-
-    function handleNav(page) {
-        if (page === activePage) return;
-        setActivePage(page);
-        try { tg.HapticFeedback.impactOccurred('light'); } catch {}
-
-        if (page === 'withdraw') {
-            apiCall('getHistory', 'POST', { id: appState.user.id }).then(data => {
-                if (data) {
-                    setAppState(prev => { const n = { ...prev, history: data }; saveLocal(n); return n; });
-                }
-            });
-        }
-    }
-
-    const u   = appState.user;
-    const cfg = appState.config;
-    const sym = cfg.currencySymbol || 'USDT';
-    const totalAdViews = Object.values(u.dailyAds || {}).reduce((s, c) => s + c, 0);
-
-    return (
-        <>
-            <style>{css}</style>
-
-            {!appReady && <Loader hiding={loaderHide} progress={loadingProgress} />}
-            <Toast type={toast.type} msg={toast.msg} show={toast.show} />
-
-            {withdrawModal && (
-                <div className="modal-overlay" onClick={() => setWithdrawModal(null)}>
-                    <div className="modal-card" onClick={e => e.stopPropagation()}>
-                        <div className="modal-glow" />
-                        <div className="modal-icon">
-                            <img src={ICONS.check} alt="" />
-                        </div>
-                        <h3>Withdrawal Submitted</h3>
-                        <p className="modal-sub">Your request has been sent successfully</p>
-                        <div className="modal-details">
-                            <div className="modal-row">
-                                <span>Amount</span>
-                                <strong>{fmtAmt(withdrawModal.amount, sym)}</strong>
-                            </div>
-                            <div className="modal-row">
-                                <span>Payment Method</span>
-                                <strong>{withdrawModal.method}</strong>
-                            </div>
-                            <div className="modal-row">
-                                <span>Account</span>
-                                <strong>{withdrawModal.account}</strong>
-                            </div>
-                            <div className="modal-row">
-                                <span>New Balance</span>
-                                <strong>{fmtAmt(withdrawModal.balance, sym)}</strong>
-                            </div>
-                            <div className="modal-row">
-                                <span>Status</span>
-                                <strong className="status-txt">Pending</strong>
-                            </div>
-                        </div>
-                        <p className="modal-note">
-                            Our team processes requests within 24 hours.
-                            Contact support if you need any assistance.
-                        </p>
-                        <button className="btn-modal-close" onClick={() => setWithdrawModal(null)}>OK</button>
-                    </div>
-                </div>
-            )}
-
-            {appReady && (
-                <>
-                    <header className="top-nav">
-                        <div className="user-pill">
-                            <div className="user-avatar">
-                                <img
-                                    src={u.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.firstName||'U')}&background=16b88a&color=fff&size=88`}
-                                    alt={u.firstName}
-                                />
-                                <div className="avatar-status" />
-                            </div>
-                            <div className="user-info">
-                                <h3>{u.firstName || tgUser.first_name}</h3>
-                                <p>ID: {u.id || tgUser.id}</p>
-                            </div>
-                        </div>
-                        <button className="notif-btn" onClick={openSupport} aria-label="Support">
-                            <img src={ICONS.bell} alt="Support" />
-                            <div className="notif-dot" />
-                        </button>
-                    </header>
-
-                    <main>
-                        {activePage === 'home'     && <HomePage     appState={appState} onGoReferral={() => handleNav('referral')} onTap={handleTap} tapState={tapState} />}
-                        {activePage === 'earn'     && <EarnPage     appState={appState} onAdDone={handleAdDone} onTaskBegin={handleTaskBegin} />}
-                        {activePage === 'mining'   && <MiningPage   appState={appState} onMine={handleMine} mineState={mineState} />}
-                        {activePage === 'mission'  && <MissionPage  appState={appState} onClaimMission={handleClaimMission} />}
-                        {activePage === 'referral' && <ReferralPage appState={appState} onCopy={handleCopy} onShare={handleShare} />}
-                        {activePage === 'withdraw' && <WithdrawPage appState={appState} onWithdraw={handleWithdraw} />}
-                    </main>
-
-                    <nav className="bottom-nav" aria-label="Main navigation">
-                        {[
-                            { page:'home',     icon:ICONS.home,     label:'Home' },
-                            { page:'earn',     icon:ICONS.earn,     label:'Earn' },
-                            { page:'mining',   icon:ICONS.pickaxe,  label:'Mining' },
-                            { page:'mission',  icon:ICONS.trophy,   label:'Missions' },
-                            { page:'referral', icon:ICONS.users,    label:'Refer' },
-                            { page:'withdraw', icon:ICONS.withdraw, label:'Withdraw' },
-                        ].map(({ page, icon, label }) => (
-                            <div
-                                key={page}
-                                className={`nav-item ${activePage === page ? 'active' : ''}`}
-                                onClick={() => handleNav(page)}
-                                role="button"
-                                aria-label={label}
-                                tabIndex={0}
-                                onKeyDown={e => e.key === 'Enter' && handleNav(page)}
-                            >
-                                <img className="nav-img" src={icon} alt={label} />
-                                <span>{label}</span>
-                                <div className="nav-dot" />
-                            </div>
-                        ))}
-                    </nav>
-                </>
-            )}
-        </>
-    );
-}
+                coco
