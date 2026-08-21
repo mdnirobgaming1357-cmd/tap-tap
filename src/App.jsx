@@ -1539,15 +1539,19 @@ function AdBox({ slot, index, done, limit, onAdDone, sym }) {
         }
 
         updatePhase('watching');
+        // Complete the moment the visible watch countdown reaches 0.
+        // We no longer wait on the ad SDK to report that it "closed" —
+        // that signal is unreliable (especially on Monetag) and was
+        // causing the reward/cooldown to stall indefinitely. If the SDK
+        // explicitly reported a failure (adFailedRef) we still skip the
+        // reward, but we never sit around waiting for a close event.
         startCountdown(WATCH_SECONDS * 1000, () => {
-            waitFor(() => !adOpenRef.current || adFailedRef.current, 30000).then(() => {
-                if (adFailedRef.current) {
-                    showToastGlobal('error', 'Ad was not completed. Please try again.');
-                    resetToIdle();
-                    return;
-                }
-                completeWatch();
-            });
+            if (adFailedRef.current) {
+                showToastGlobal('error', 'Ad was not completed. Please try again.');
+                resetToIdle();
+                return;
+            }
+            completeWatch();
         });
     }
 
@@ -2312,4 +2316,177 @@ export default function App() {
         if (rData?.success) {
             const newBalance = Math.max(0, (appState.user.balance || 0) - payload.amount);
             setAppState(prev => {
-                coco
+                const next = { ...prev, user: { ...prev.user, balance: newBalance } };
+                saveLocal(next);
+                return next;
+            });
+            const updtHist = await apiCall('getHistory', 'POST', { id: appState.user.id });
+            if (updtHist) {
+                setAppState(prev => { const n = { ...prev, history: updtHist }; saveLocal(n); return n; });
+            }
+            // Show modal (not fullscreen)
+            setWithdrawModal({
+                amount: payload.amount,
+                method: payload.method,
+                account: payload.account,
+                balance: newBalance,
+            });
+            showToast('success', 'Withdrawal request submitted!');
+            tg.HapticFeedback.notificationOccurred('success');
+            return true;
+        } else {
+            showToast('error', rData?.message || 'Server error. Please try again.');
+            return false;
+        }
+    }
+
+    function handleCopy(link) {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(link).then(() => showToast('success', 'Link copied!'));
+        } else {
+            const tmp = document.createElement('input');
+            tmp.value = link;
+            document.body.appendChild(tmp);
+            tmp.select();
+            document.execCommand('copy');
+            document.body.removeChild(tmp);
+            showToast('success', 'Link copied!');
+        }
+        tg.HapticFeedback.notificationOccurred('success');
+    }
+
+    function handleShare(link) {
+        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join now and start earning!')}`);
+    }
+
+    function openSupport() {
+        if (appState.config.supportLink) tg.openLink(appState.config.supportLink);
+        else showToast('warning', 'Support link is not configured.');
+    }
+
+    function handleNav(page) {
+        if (page === activePage) return;
+        setActivePage(page);
+        try { tg.HapticFeedback.impactOccurred('light'); } catch {}
+
+        if (page === 'withdraw') {
+            apiCall('getHistory', 'POST', { id: appState.user.id }).then(data => {
+                if (data) {
+                    setAppState(prev => { const n = { ...prev, history: data }; saveLocal(n); return n; });
+                }
+            });
+        }
+    }
+
+    const u   = appState.user;
+    const cfg = appState.config;
+    const sym = cfg.currencySymbol || 'USDT';
+    const totalAdViews = Object.values(u.dailyAds || {}).reduce((s, c) => s + c, 0);
+
+    return (
+        <>
+            <style>{css}</style>
+
+            {!appReady && <Loader hiding={loaderHide} progress={loadingProgress} />}
+            <Toast type={toast.type} msg={toast.msg} show={toast.show} />
+
+            {withdrawModal && (
+                <div className="modal-overlay" onClick={() => setWithdrawModal(null)}>
+                    <div className="modal-card" onClick={e => e.stopPropagation()}>
+                        <div className="modal-glow" />
+                        <div className="modal-icon">
+                            <img src={ICONS.check} alt="" />
+                        </div>
+                        <h3>Withdrawal Submitted</h3>
+                        <p className="modal-sub">Your request has been sent successfully</p>
+                        <div className="modal-details">
+                            <div className="modal-row">
+                                <span>Amount</span>
+                                <strong>{fmtAmt(withdrawModal.amount, sym)}</strong>
+                            </div>
+                            <div className="modal-row">
+                                <span>Payment Method</span>
+                                <strong>{withdrawModal.method}</strong>
+                            </div>
+                            <div className="modal-row">
+                                <span>Account</span>
+                                <strong>{withdrawModal.account}</strong>
+                            </div>
+                            <div className="modal-row">
+                                <span>New Balance</span>
+                                <strong>{fmtAmt(withdrawModal.balance, sym)}</strong>
+                            </div>
+                            <div className="modal-row">
+                                <span>Status</span>
+                                <strong className="status-txt">Pending</strong>
+                            </div>
+                        </div>
+                        <p className="modal-note">
+                            Our team processes requests within 24 hours.
+                            Contact support if you need any assistance.
+                        </p>
+                        <button className="btn-modal-close" onClick={() => setWithdrawModal(null)}>OK</button>
+                    </div>
+                </div>
+            )}
+
+            {appReady && (
+                <>
+                    <header className="top-nav">
+                        <div className="user-pill">
+                            <div className="user-avatar">
+                                <img
+                                    src={u.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.firstName||'U')}&background=16b88a&color=fff&size=88`}
+                                    alt={u.firstName}
+                                />
+                                <div className="avatar-status" />
+                            </div>
+                            <div className="user-info">
+                                <h3>{u.firstName || tgUser.first_name}</h3>
+                                <p>ID: {u.id || tgUser.id}</p>
+                            </div>
+                        </div>
+                        <button className="notif-btn" onClick={openSupport} aria-label="Support">
+                            <img src={ICONS.bell} alt="Support" />
+                            <div className="notif-dot" />
+                        </button>
+                    </header>
+
+                    <main>
+                        {activePage === 'home'     && <HomePage     appState={appState} onGoReferral={() => handleNav('referral')} onTap={handleTap} tapState={tapState} />}
+                        {activePage === 'earn'     && <EarnPage     appState={appState} onAdDone={handleAdDone} onTaskBegin={handleTaskBegin} />}
+                        {activePage === 'mining'   && <MiningPage   appState={appState} onMine={handleMine} onClaimMineBonus={handleClaimMineBonus} mineState={mineState} />}
+                        {activePage === 'mission'  && <MissionPage  appState={appState} onClaimMission={handleClaimMission} />}
+                        {activePage === 'referral' && <ReferralPage appState={appState} onCopy={handleCopy} onShare={handleShare} />}
+                        {activePage === 'withdraw' && <WithdrawPage appState={appState} onWithdraw={handleWithdraw} />}
+                    </main>
+
+                    <nav className="bottom-nav" aria-label="Main navigation">
+                        {[
+                            { page:'home',     icon:ICONS.home,     label:'Home' },
+                            { page:'earn',     icon:ICONS.earn,     label:'Earn' },
+                            { page:'mining',   icon:ICONS.pickaxe,  label:'Mining' },
+                            { page:'mission',  icon:ICONS.trophy,   label:'Missions' },
+                            { page:'referral', icon:ICONS.users,    label:'Refer' },
+                            { page:'withdraw', icon:ICONS.withdraw, label:'Withdraw' },
+                        ].map(({ page, icon, label }) => (
+                            <div
+                                key={page}
+                                className={`nav-item ${activePage === page ? 'active' : ''}`}
+                                onClick={() => handleNav(page)}
+                                role="button"
+                                aria-label={label}
+                                tabIndex={0}
+                                onKeyDown={e => e.key === 'Enter' && handleNav(page)}
+                            >
+                                <img className="nav-img" src={icon} alt={label} />
+                                <span>{label}</span>
+                                <div className="nav-dot" />
+                            </div>
+                        ))}
+                    </nav>
+                </>
+            )}
+        </>
+    );
+}
